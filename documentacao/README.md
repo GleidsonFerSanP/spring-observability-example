@@ -83,8 +83,10 @@ flowchart TD
 
 - [**Arquitetura e Fluxos**](README.md): Este documento, contendo visão geral, arquitetura e componentes.
 - [**Registro de Decisões Arquiteturais (ADRs)**](DECISOES_ARQUITETURAIS_ADR.md): Racional detalhado de todas as decisões tomadas, problemas, soluções e trade-offs.
+- [**Guia de Alarmística, SLAs e Incidentes**](GUIA_DE_ALARMISTICA_E_SLAS.md): Arquitetura de alarmística não-intrusiva em 2 camadas, interceptação de disjuntores, SLA Guard e Prometheus alerts.
 - [**Observabilidade e Métricas**](OBSERVABILIDADE_E_METRICAS.md): Explicação do Aspecto SpEL, tags customizadas, rastreamento de fatias por entrypoint, queries PromQL e estrutura do painel Grafana.
 - [**Cenários de Teste e Caos**](CENARIOS_DE_TESTE_E_CAOS.md): Detalhamento dos cenários de teste de carga contínua, simulação de falhas e disjuntores.
+- [**Especificação Técnica para Starter Spring Boot**](ESPECIFICACAO_TECNICA_STARTER_OBSERVABILIDADE.md): Especificação completa e guia para extração da observabilidade em um starter reutilizável por um Agente de IA.
 
 ---
 

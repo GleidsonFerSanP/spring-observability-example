@@ -1,5 +1,10 @@
 package com.gleidsonfersanp.observability.observability;
 
+import com.gleidsonfersanp.observability.observability.alerting.AlertDispatcher;
+import com.gleidsonfersanp.observability.observability.alerting.AlertEvent;
+import com.gleidsonfersanp.observability.observability.alerting.AlertSeverity;
+import com.gleidsonfersanp.observability.observability.alerting.AlertType;
+import com.gleidsonfersanp.observability.observability.alerting.AlertingProperties;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
@@ -23,15 +28,20 @@ public class SqsMetricsBinder implements MeterBinder {
 
     private static final Logger log = LoggerFactory.getLogger(SqsMetricsBinder.class);
     private final SqsAsyncClient sqsAsyncClient;
+    private final AlertDispatcher alertDispatcher;
+    private final AlertingProperties alertingProperties;
     private final Map<String, AtomicInteger> queueSizes = new ConcurrentHashMap<>();
     private final Map<String, String> queueUrlCache = new ConcurrentHashMap<>();
+    private final Map<String, Long> lastAlertTimestamps = new ConcurrentHashMap<>();
     private MeterRegistry registry;
 
     @Value("${sqs.metrics.queues:}")
     private List<String> configuredQueues;
 
-    public SqsMetricsBinder(SqsAsyncClient sqsAsyncClient) {
+    public SqsMetricsBinder(SqsAsyncClient sqsAsyncClient, AlertDispatcher alertDispatcher, AlertingProperties alertingProperties) {
         this.sqsAsyncClient = sqsAsyncClient;
+        this.alertDispatcher = alertDispatcher;
+        this.alertingProperties = alertingProperties;
     }
 
     @Override
@@ -79,6 +89,28 @@ public class SqsMetricsBinder implements MeterBinder {
                 .thenAccept(attr -> {
                     int count = Integer.parseInt(attr.attributes().get(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES));
                     queueSize.set(count);
+
+                    int threshold = alertingProperties.getSqsDepthThreshold();
+                    if (count > threshold) {
+                        long now = System.currentTimeMillis();
+                        Long lastAlert = lastAlertTimestamps.get(queueName);
+                        if (lastAlert == null || (now - lastAlert > 30_000)) {
+                            lastAlertTimestamps.put(queueName, now);
+                            alertDispatcher.dispatch(AlertEvent.of(
+                                    AlertType.SQS_BACKLOG_HIGH,
+                                    AlertSeverity.WARNING,
+                                    "SqsMetricsBinder",
+                                    queueName,
+                                    String.format("Fila SQS '%s' acumulou %d mensagens pendentes (limiar: %d).",
+                                            queueName, count, threshold),
+                                    count,
+                                    threshold,
+                                    Map.of("queue", queueName, "depth", count, "threshold", threshold)
+                            ));
+                        }
+                    } else {
+                        lastAlertTimestamps.remove(queueName);
+                    }
                 }).exceptionally(ex -> {
                     log.warn("Could not fetch attributes for {}: {}", queueName, ex.getMessage());
                     return null;

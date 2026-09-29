@@ -1,5 +1,10 @@
 package com.gleidsonfersanp.observability.observability;
 
+import com.gleidsonfersanp.observability.observability.alerting.AlertDispatcher;
+import com.gleidsonfersanp.observability.observability.alerting.AlertEvent;
+import com.gleidsonfersanp.observability.observability.alerting.AlertSeverity;
+import com.gleidsonfersanp.observability.observability.alerting.AlertType;
+import com.gleidsonfersanp.observability.observability.alerting.AlertingProperties;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
@@ -25,11 +30,16 @@ public class KafkaLagMetricsBinder implements MeterBinder {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaLagMetricsBinder.class);
     private final KafkaAdmin kafkaAdmin;
+    private final AlertDispatcher alertDispatcher;
+    private final AlertingProperties alertingProperties;
     private final Map<String, AtomicLong> lagGauges = new ConcurrentHashMap<>();
+    private final Map<String, Long> lastAlertTimestamps = new ConcurrentHashMap<>();
     private MeterRegistry meterRegistry;
 
-    public KafkaLagMetricsBinder(KafkaAdmin kafkaAdmin) {
+    public KafkaLagMetricsBinder(KafkaAdmin kafkaAdmin, AlertDispatcher alertDispatcher, AlertingProperties alertingProperties) {
         this.kafkaAdmin = kafkaAdmin;
+        this.alertDispatcher = alertDispatcher;
+        this.alertingProperties = alertingProperties;
     }
 
     @Override
@@ -78,6 +88,29 @@ public class KafkaLagMetricsBinder implements MeterBinder {
                                     .register(meterRegistry);
                             return gaugeVal;
                         }).set(lag);
+
+                        // Avaliação de alerta para acúmulo de lag no Kafka
+                        long threshold = alertingProperties.getKafkaLagThreshold();
+                        if (lag > threshold) {
+                            long now = System.currentTimeMillis();
+                            Long lastAlert = lastAlertTimestamps.get(key);
+                            if (lastAlert == null || (now - lastAlert > 30_000)) {
+                                lastAlertTimestamps.put(key, now);
+                                alertDispatcher.dispatch(AlertEvent.of(
+                                        AlertType.KAFKA_LAG_HIGH,
+                                        AlertSeverity.WARNING,
+                                        "KafkaLagBinder",
+                                        key,
+                                        String.format("Lag no tópico '%s' (grupo '%s') atingiu %d mensagens (limiar: %d).",
+                                                tp.topic(), group, lag, threshold),
+                                        lag,
+                                        threshold,
+                                        Map.of("topic", tp.topic(), "group", group, "lag", lag, "threshold", threshold)
+                                ));
+                            }
+                        } else {
+                            lastAlertTimestamps.remove(key);
+                        }
                     }
                 }
             }

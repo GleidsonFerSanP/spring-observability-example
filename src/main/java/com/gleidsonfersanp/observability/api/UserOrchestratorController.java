@@ -4,6 +4,8 @@ import com.gleidsonfersanp.observability.application.UserOrchestratorService;
 import com.gleidsonfersanp.observability.domain.AuditLogRepository;
 import com.gleidsonfersanp.observability.domain.UserProfile;
 import com.gleidsonfersanp.observability.domain.UserRegistrationRequest;
+import com.gleidsonfersanp.observability.observability.alerting.AlertDispatcher;
+import com.gleidsonfersanp.observability.observability.alerting.AlertEvent;
 import com.gleidsonfersanp.observability.observability.flow.TrackFlow;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,10 +19,14 @@ public class UserOrchestratorController {
 
     private final UserOrchestratorService orchestratorService;
     private final AuditLogRepository auditLogRepository;
+    private final AlertDispatcher alertDispatcher;
 
-    public UserOrchestratorController(UserOrchestratorService orchestratorService, AuditLogRepository auditLogRepository) {
+    public UserOrchestratorController(UserOrchestratorService orchestratorService, 
+                                      AuditLogRepository auditLogRepository,
+                                      AlertDispatcher alertDispatcher) {
         this.orchestratorService = orchestratorService;
         this.auditLogRepository = auditLogRepository;
+        this.alertDispatcher = alertDispatcher;
     }
 
     // Existing sync flow
@@ -43,5 +49,11 @@ public class UserOrchestratorController {
     @GetMapping("/audit")
     public ResponseEntity<List<String>> getAuditLogs() {
         return ResponseEntity.ok(auditLogRepository.getLogs());
+    }
+
+    // Endpoint para inspeção da Alarmística Reativa In-App
+    @GetMapping("/alerts")
+    public ResponseEntity<List<AlertEvent>> getRecentAlerts() {
+        return ResponseEntity.ok(alertDispatcher.getRecentAlerts());
     }
 }

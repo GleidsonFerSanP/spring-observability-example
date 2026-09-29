@@ -335,6 +335,40 @@
           "pieType": "donut",
           "legend": {"displayMode": "table", "placement": "right", "values": ["percent"]}
         }
+      },
+      {
+        "id": 14,
+        "title": "🚨 Central de Alarmística e Violações de SLA (Alerts/sec)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 34, "w": 16, "h": 7},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(rate(alerts_triggered_total[1m])) by (type, severity)",
+            "legendFormat": "[{{severity}}] {{type}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+        }
+      },
+      {
+        "id": 15,
+        "title": "⚠️ Incidentes e Violações por Alvo",
+        "type": "barchart",
+        "gridPos": {"x": 16, "y": 34, "w": 8, "h": 7},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(increase(alerts_triggered_total[15m])) by (target)",
+            "legendFormat": "{{target}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        }
       }
     ]
   },

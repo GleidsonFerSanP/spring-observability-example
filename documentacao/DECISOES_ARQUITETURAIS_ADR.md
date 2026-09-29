@@ -13,6 +13,7 @@ Este documento registra formalmente as principais decisões arquiteturais tomada
 - [ADR 05: Extração Autoritativa de Lag do Kafka via AdminClient](#adr-05-extração-autoritativa-de-lag-do-kafka-via-adminclient)
 - [ADR 06: Ergonomia Visual e Prevenção de Truncamento no Grafana](#adr-06-ergonomia-visual-e-prevenção-de-truncamento-no-grafana)
 - [ADR 07: Engenharia de Caos e Simulação de Falhas Controladas com WireMock e Carga Contínua](#adr-07-engenharia-de-caos-e-simulação-de-falhas-controladas)
+- [ADR 08: Arquitetura de Alarmística Não-Intrusiva em Duas Camadas](#adr-08-arquitetura-de-alarmística-não-intrusiva-em-duas-camadas)
 
 ---
 
@@ -162,3 +163,30 @@ Para validar se os alarmes, disjuntores e métricas operam corretamente sob estr
 
 ### Consequências
 - **Positivas**: Geração contínua de métricas sem interrupção; possibilidade de demonstrar a abertura e fechamento de disjuntores ao vivo; observação do aumento e drenagem de filas e lag no Grafana.
+
+---
+
+## ADR 08: Arquitetura de Alarmística Não-Intrusiva em Duas Camadas
+
+### Contexto
+Sistemas distribuídos corporativos exigem detecção veloz de falhas e violações de SLA (latência alta em integrações, circuit breakers abertos, filas acumulando mensagens, exaustão de pool de banco).
+Historicamente, essa necessidade leva os desenvolvedores a implementarem código condicional de disparo de alertas dentro das classes de serviço de domínio ou, no outro extremo, a dependerem apenas da raspagem lenta do Prometheus/Alertmanager (minutos para reagir).
+
+### Decisão
+Estruturar a solução de alarmística em duas camadas complementares e desacopladas:
+
+1. **Camada 1: Alarmística Reativa In-App (Sub-segundo / Zero Invasão)**:
+   - **Circuit Breakers**: `CircuitBreakerAlertListener` implementa `RegistryEventConsumer<CircuitBreaker>` do Resilience4j, capturando transições para `OPEN` ou `HALF_OPEN` em milissegundos sem tocar nos serviços ou clientes.
+   - **SLA Guard de Latência**: `FlowTrackingAspect` avalia a duração medida de cada `@TrackStep` e `@TrackFlow` em relação aos thresholds configurados no `application.yml`, emitindo `INTEGRATION_LATENCY_SLA_BREACH` e `FLOW_LATENCY_SLA_BREACH`.
+   - **Watchdogs de Infraestrutura**: Binders de Kafka Lag, Filas SQS e Pool HikariCP monitoram acúmulos e emitem alertas com estrangulamento de 30s.
+   - **Centralizador Desacoplado**: `AlertDispatcher` distribui os alertas para múltiplos `AlertNotifier` (Logs estruturados JSON, Webhooks corporativos assíncronos) e incrementa o contador Prometheus `alerts_triggered_total`.
+   - **Buffer de Consulta**: Endpoint `GET /api/v1/orchestrator/alerts` expõe os últimos 100 incidentes.
+
+2. **Camada 2: Alarmística de Plataforma no Prometheus / Alertmanager**:
+   - Criação de `prometheus-alerts.yml` com regras declarativas avaliadas continuamente para detectar degradações da frota.
+   - Painéis dedicados de alertas e violações de SLA adicionados ao dashboard do Grafana.
+
+### Consequências
+- **Positivas**: Resposta imediata a incidentes na JVM; zero código de telemetria dentro das regras de negócio; arquitetura facilmente empacotável em um Starter corporativo compartilhado; correlação nativa entre métricas in-app e alertas do Prometheus.
+- **Negativas**: Exige definição e calibração de limites de SLA (`application.yml`) para evitar falsos positivos em ambientes de teste.
+

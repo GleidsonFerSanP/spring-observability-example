@@ -9,6 +9,23 @@ app:
       url: http://localhost:8081
     notification:
       url: http://localhost:8081
+  observability:
+    alerting:
+      enabled: true
+      defaultStepSlaMs: 1000
+      defaultFlowSlaMs: 2000
+      kafkaLagThreshold: 80
+      sqsDepthThreshold: 40
+      hikariPendingThreshold: 1
+      stepSlaMs:
+        "API Customer (GET /customers/{userId})": 500
+        "API Billing (GET /billing/accounts/{userId})": 500
+        "API Notificação (POST /notifications)": 500
+        "Publicação Kafka (user-registration-topic)": 300
+        "Publicação SQS (user-audit-queue)": 300
+      flowSlaMs:
+        "GET /api/v1/orchestrator/users/{userId}": 1000
+        "Kafka Consumer: user-registration-topic": 2000
 
 logging:
   level:
@@ -46,12 +63,6 @@ spring:
         secret-key: test
       sqs:
         endpoint: http://localhost:4566
-sqs:
-  metrics:
-    poll-delay: 10000
-    queues:
-      - customer-events-queue
-      - billing-events-queue
   kafka:
     bootstrap-servers: localhost:9092
     producer:
@@ -62,6 +73,31 @@ sqs:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  datasource:
+    url: jdbc:h2:mem:observabilitydb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    driverClassName: org.h2.Driver
+    hikari:
+      pool-name: observability-hikari-pool
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 3000
+      max-lifetime: 600000
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        generate_statistics: true
+
+sqs:
+  metrics:
+    poll-delay: 10000
+    queues:
+      - customer-events-queue
+      - billing-events-queue
 
 resilience4j:
   circuitbreaker:
@@ -86,24 +122,3 @@ resilience4j:
       notification-service:
         baseConfig: default
 
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/observabilitydb
-    username: observability
-    password: password
-    driverClassName: org.postgresql.Driver
-    hikari:
-      pool-name: observability-hikari-pool
-      maximum-pool-size: 5
-      minimum-idle: 1
-      connection-timeout: 3000
-      max-lifetime: 600000
-  jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        generate_statistics: true
-        session_factory:
-          session_scoped_interceptor: org.hibernate.resource.jdbc.spi.StatementInspector

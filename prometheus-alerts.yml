@@ -1,0 +1,82 @@
+groups:
+  - name: observability-master-alerts
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: resilience4j_circuitbreaker_state{state="open"} == 1
+        for: 15s
+        labels:
+          severity: critical
+          category: resilience
+        annotations:
+          summary: "Disjuntor aberto na integração {{ $labels.name }}"
+          description: "O Circuit Breaker da integração '{{ $labels.name }}' está ABERTO há mais de 15 segundos devido a falhas consecutivas ou timeout."
+
+      - alert: CircuitBreakerDegraded
+        expr: resilience4j_circuitbreaker_state{state="half_open"} == 1
+        for: 30s
+        labels:
+          severity: warning
+          category: resilience
+        annotations:
+          summary: "Disjuntor em recuperação (Half-Open) na integração {{ $labels.name }}"
+          description: "O Circuit Breaker '{{ $labels.name }}' está operando em modo meio-aberto avaliando tráfego de teste."
+
+      - alert: IntegrationStepLatencyHigh
+        expr: sum(rate(flow_slice_duration_seconds_sum[1m])) by (flow, step) / sum(rate(flow_slice_duration_seconds_count[1m])) by (flow, step) > 1.2
+        for: 30s
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Violação de SLA na integração {{ $labels.step }}"
+          description: "O subprocesso/fatia '{{ $labels.step }}' no fluxo '{{ $labels.flow }}' está com latência média de {{ $value | humanizeDuration }} (limiar: 1.2s)."
+
+      - alert: FlowE2ELatencyHigh
+        expr: sum(rate(flow_total_duration_seconds_sum[1m])) by (flow) / sum(rate(flow_total_duration_seconds_count[1m])) by (flow) > 2.5
+        for: 30s
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "Latência End-to-End excessiva no fluxo {{ $labels.flow }}"
+          description: "A duração total do fluxo '{{ $labels.flow }}' atingiu média de {{ $value | humanizeDuration }} (limiar: 2.5s)."
+
+      - alert: KafkaConsumerLagCritical
+        expr: kafka_consumer_lag_records > 80
+        for: 45s
+        labels:
+          severity: critical
+          category: messaging
+        annotations:
+          summary: "Lag crítico no consumidor Kafka (Tópico: {{ $labels.topic }}, Grupo: {{ $labels.group }})"
+          description: "O consumidor está atrasado em {{ $value }} mensagens em relação ao topo da partição no broker."
+
+      - alert: SqsQueueBacklogHigh
+        expr: sqs_queue_depth > 40
+        for: 1m
+        labels:
+          severity: warning
+          category: messaging
+        annotations:
+          summary: "Acúmulo de mensagens na fila SQS {{ $labels.queue }}"
+          description: "A fila SQS '{{ $labels.queue }}' possui {{ $value }} mensagens pendentes de processamento."
+
+      - alert: DatabasePoolStarvation
+        expr: hikaricp_connections_pending > 0 or rate(hikaricp_connections_timeout_total[1m]) > 0
+        for: 15s
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Esgotamento crítico do Pool de Conexões (HikariCP)"
+          description: "Detectadas threads em fila de espera ou timeouts ocorrendo ao solicitar conexões no pool de banco de dados."
+
+      - alert: InAppReactiveAlertsSpike
+        expr: sum(rate(alerts_triggered_total[1m])) by (type, severity) > 0.05
+        for: 15s
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "Pico de alertas in-app disparados (Tipo: {{ $labels.type }}, Gravidade: {{ $labels.severity }})"
+          description: "A aplicação está emitindo ativamente alertas internos de violação de contrato ou resiliência a uma taxa de {{ $value }} alertas/s."
