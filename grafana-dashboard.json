@@ -455,7 +455,7 @@
         "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
         "targets": [
           {
-            "expr": "sum(rate(flow_slice_duration_seconds_sum{step=~\"step.api.*\"}[1m])) by (step) / sum(rate(flow_slice_duration_seconds_count{step=~\"step.api.*\"}[1m])) by (step)",
+            "expr": "sum(rate(flow_slice_duration_seconds_sum{step=~\"API.*\"}[1m])) by (step) / sum(rate(flow_slice_duration_seconds_count{step=~\"API.*\"}[1m])) by (step)",
             "legendFormat": "Média Latência: {{step}}",
             "refId": "A"
           }
