@@ -16,6 +16,8 @@ public class FlowContext {
     private final String flowName;
     private final long startNanos;
     private final Map<String, Long> stepDurations = new LinkedHashMap<>();
+    private String failedStep;
+    private Throwable failureError;
 
     private FlowContext(String flowName) {
         this.flowName = flowName;
@@ -26,12 +28,38 @@ public class FlowContext {
         CURRENT_FLOW.get().push(new FlowContext(flowName));
     }
 
+    public static String getCurrentFlowName() {
+        Deque<FlowContext> stack = CURRENT_FLOW.get();
+        return stack.isEmpty() ? "unknown" : stack.peek().flowName;
+    }
+
     public static void recordStep(String stepName, long durationNanos) {
         Deque<FlowContext> stack = CURRENT_FLOW.get();
         if (!stack.isEmpty()) {
             FlowContext current = stack.peek();
             current.stepDurations.merge(stepName, durationNanos, Long::sum);
         }
+    }
+
+    public static void recordInterruption(String stepName, Throwable t, MeterRegistry registry) {
+        Deque<FlowContext> stack = CURRENT_FLOW.get();
+        String currentFlow = "unknown";
+        if (!stack.isEmpty()) {
+            FlowContext current = stack.peek();
+            current.failedStep = stepName;
+            current.failureError = t;
+            currentFlow = current.flowName;
+        }
+
+        String errorType = (t != null) ? t.getClass().getSimpleName() : "UnknownError";
+
+        io.micrometer.core.instrument.Counter.builder("flow_interruption_total")
+                .tag("flow", currentFlow)
+                .tag("failed_step", stepName)
+                .tag("error_type", errorType)
+                .description("Contador de interrupções de fluxo por etapa causadora e tipo de erro")
+                .register(registry)
+                .increment();
     }
 
     public static void complete(MeterRegistry registry) {

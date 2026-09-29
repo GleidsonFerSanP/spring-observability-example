@@ -7,7 +7,8 @@ public enum AlertType {
     FLOW_LATENCY_SLA_BREACH("Violação de SLA de Latência End-to-End no Fluxo"),
     KAFKA_LAG_HIGH("Acúmulo Crítico de Lag no Consumidor Kafka"),
     SQS_BACKLOG_HIGH("Fila SQS com Volume Elevado de Mensagens Pendentes"),
-    DATABASE_POOL_STARVATION("Esgotamento Crítico do Pool de Conexões de Banco de Dados");
+    DATABASE_POOL_STARVATION("Esgotamento Crítico do Pool de Conexões de Banco de Dados"),
+    FLOW_STEP_INTERRUPTION("Interrupção no Fluxo - Falha Crítica em Subprocesso");
 
     private final String description;
 
