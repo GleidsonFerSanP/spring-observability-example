@@ -253,3 +253,41 @@ A aplicação foi estendida para garantir total visibilidade sobre o comportamen
 ### 7.3. Métricas adicionais e Tracing (O que veremos no Grafana e Jaeger)
 
 A configuração permite que no Jaeger todo acesso ao banco seja tracejado. Um `Span` do banco de dados relacional mostrará claramente o comando executado e a duração. No lado das métricas, os tempos de cada *slow query* e falha de timeout podem disparar alertas customizados antes que a exaustão se torne completa.
+
+---
+
+## 🛑 8. Tracing Hierárquico e Ponto Exato de Interrupção (Dead Stop Breakdown)
+
+Para diagnosticar imediatamente **onde e por que um fluxo de negócio foi interrompido sem precisar vasculhar logs brutos**, a camada de observabilidade integra Tracing distribuído e métricas de Dead Stop:
+
+### 8.1. Árvore Hierárquica de Spans via Micrometer Observation
+1. **Span Raiz (`@TrackFlow`)**:
+   - Cria o contexto da transação (ex: `flow.get.api.v1.orchestrator.users.userid`).
+   - Propaga o `traceparent` via W3C Trace Context.
+2. **Spans Filhos (`@TrackStep`)**:
+   - Cria spans aninhados para cada etapa do subprocesso:
+     - `step.api.customer.get.customers.userid`
+     - `step.api.billing.get.billing.accounts.userid`
+     - `step.api.notificacao.post.notifications`
+     - `step.publicacao.kafka...`
+3. **Identificação de Erro no Span**:
+   - Quando uma exceção é lançada em um step (ex: `IntegrationServerException` HTTP 500 do Billing), o `FlowTrackingAspect` executa `stepObservation.error(t)` antes que o disjuntor capture o erro no fallback.
+   - O span da etapa é marcado em **vermelho** com tags `error=true`, `step.status=FAILED`, `error.class` e `error.message`.
+
+### 8.2. Métrica Canônica de Interrupção (`flow_interruption_total`)
+No momento exato da quebra de qualquer etapa, é incrementado:
+```promql
+flow_interruption_total{flow="...", failed_step="...", error_type="..."}
+```
+
+### 8.3. Painéis de Dead Stop no Grafana (`grafana-dashboard.json`)
+- **Painel 16: Ponto Exato de Interrupção de Fluxos**: Gráfico de barras horizontais ordenado por volume de quebras, permitindo bater o olho e ver qual integração é o gargalo.
+  ```promql
+  sum(increase(flow_interruption_total[15m])) by (failed_step, error_type)
+  ```
+- **Painel 17: Auditoria de Quebras por Step e Causa Raiz**: Tabela instantânea detalhando o fluxo afetado, o step exato onde ocorreu a quebra e a classe da exceção causadora.
+  ```promql
+  sum by (flow, failed_step, error_type) (flow_interruption_total)
+  ```
+- **Navegação com Exemplars (Métrica -> Trace)**: Os gráficos de latência e erro do Prometheus possuem marcações clicáveis (Exemplars) com o `trace_id`, abrindo a árvore do Jaeger diretamente na interface do Grafana.
+

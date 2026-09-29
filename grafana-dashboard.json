@@ -369,6 +369,42 @@
         "options": {
           "legend": {"displayMode": "list", "placement": "bottom"}
         }
+      },
+      {
+        "id": 16,
+        "title": "🛑 Ponto Exato de Interrupção de Fluxos (Dead Stop Breakdown)",
+        "type": "barchart",
+        "gridPos": {"x": 0, "y": 41, "w": 14, "h": 8},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(increase(flow_interruption_total[15m])) by (failed_step, error_type)",
+            "legendFormat": "{{failed_step}} [{{error_type}}]",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "sum"]}
+        }
+      },
+      {
+        "id": 17,
+        "title": "🔍 Auditoria de Quebras por Step e Causa Raiz",
+        "type": "table",
+        "gridPos": {"x": 14, "y": 41, "w": 10, "h": 8},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum by (flow, failed_step, error_type) (flow_interruption_total)",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "sortBy": [{"displayName": "Value", "desc": true}]
+        }
       }
     ]
   },
