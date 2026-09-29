@@ -754,7 +754,55 @@ Em vez de clonar painéis para cada recurso, o padrão recomendado no Grafana é
    - **Data source**: `Prometheus`
    - **Query**: `label_values(sqs_queue_depth, queue)`
 3. No painel do Grafana, escreva a query usando a variável:
-   ```promql
-   sqs_queue_depth{queue="$queue_name"}
-   ```
 4. **Resultado**: O Grafana cria um menu dropdown no topo da tela. Quando o operador seleciona `user-audit-queue`, o painel filtra automaticamente apenas essa fila, sem necessidade de duplicar painéis ou alterar consultas PromQL.
+
+---
+
+## 🚀 7. Consultas PromQL para Flow Dimensions e Migração de Rotas (Comparação A/B)
+
+Com o conceito de **Flow Dimensions** e a SPI `FeatureEvaluationListener`, cada fluxo avaliado sob uma feature flag gera métricas etiquetadas com a dimensão `variant` (ex: `variant="legacy"` e `variant="new"`). Isso viabiliza a criação de painéis A/B operacionais no Grafana.
+
+### 7.1. Throughput por Variante (Req/s)
+Compara em tempo real o volume de tráfego sendo direcionado para a rota antiga vs rota nova:
+```promql
+sum(rate(observability_flow_duration_seconds_count{flow="GET /api/v1/orchestrator/users/{userId}"}[1m])) by (variant)
+```
+
+### 7.2. Latência Média por Variante (ms)
+Calcula a média ponderada exata para comparar a eficiência das duas rotas:
+```promql
+(
+  sum(rate(observability_flow_duration_seconds_sum{flow="GET /api/v1/orchestrator/users/{userId}"}[1m])) by (variant)
+  /
+  sum(rate(observability_flow_duration_seconds_count{flow="GET /api/v1/orchestrator/users/{userId}"}[1m])) by (variant)
+) * 1000
+```
+
+### 7.3. Percentil P95 por Variante (ms)
+Mede a estabilidade da cauda longa de cada variante operacional:
+```promql
+histogram_quantile(0.95, sum(rate(observability_flow_duration_seconds_bucket{flow="GET /api/v1/orchestrator/users/{userId}"}[1m])) by (le, variant)) * 1000
+```
+
+### 7.4. Decomposição de Latência Atribuída - Rota Legada (Pie Chart)
+Mostra exatamente como os componentes da rota legada consomem o tempo:
+```promql
+sum(rate(observability_flow_component_attributed_duration_seconds_sum{flow="GET /api/v1/orchestrator/users/{userId}", variant="legacy"}[1m])) by (component)
+```
+
+### 7.5. Decomposição de Latência Atribuída - Nova Rota (Pie Chart)
+Explica visualmente por que a rota nova é mais rápida (ex: substituição de chamadas síncronas de notificação por filas SQS e cache Redis):
+```promql
+sum(rate(observability_flow_component_attributed_duration_seconds_sum{flow="GET /api/v1/orchestrator/users/{userId}", variant="new"}[1m])) by (component)
+```
+
+### 7.6. Taxa de Erro / Interrupção por Variante (%)
+Garante que a nova rota não introduza regressão na taxa de sucesso:
+```promql
+(
+  sum(rate(observability_flow_interruption_total[1m])) by (variant)
+  /
+  sum(rate(observability_flow_duration_seconds_count[1m])) by (variant)
+) * 100
+```
+

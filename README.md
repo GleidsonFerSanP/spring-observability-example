@@ -11,6 +11,7 @@ A documentação detalhada da arquitetura, observabilidade e engenharia de caos 
 - [**Guia de Alarmística, SLAs e Incidentes**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_ALARMISTICA_E_SLAS.md)
 - [**Guia de Observabilidade, SpEL e Métricas**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/OBSERVABILIDADE_E_METRICAS.md)
 - [**Guia de Abstração de Vendors e Provedores**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_ABSTRACAO_DE_VENDORS_E_PROVEDORES.md)
+- [**Guia de Flow Dimensions, Migração Operacional e Feature Flags**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_FLOW_DIMENSIONS_E_MIGRACAO_FEATURE_FLAGS.md)
 - [**Guia de Testes de Integração, E2E e Validação da Telemetria**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_TESTES_E2E_E_INTEGRACAO.md)
 - [**Cenários de Teste, Caos e Validação**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/CENARIOS_DE_TESTE_E_CAOS.md)
 

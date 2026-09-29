@@ -91,6 +91,7 @@ flowchart TD
 - [**Guia de Testes de Integração, E2E e Validação da Telemetria**](GUIA_DE_TESTES_E2E_E_INTEGRACAO.md): Metodologia de Stubs sobre Mocks, asserção da tríade de telemetria (Logs, Métricas e Traces), catálogo das suítes de teste e guia de como usar/executar.
 - [**Cenários de Teste e Caos**](CENARIOS_DE_TESTE_E_CAOS.md): Detalhamento dos cenários de teste de carga contínua, simulação de falhas e disjuntores.
 - [**Guia de Abstração de Vendors e Provedores**](GUIA_DE_ABSTRACAO_DE_VENDORS_E_PROVEDORES.md): Arquitetura agnóstica de fornecedor (Prometheus, Jaeger, Loki, Datadog via OTLP, Dynatrace, New Relic, OTel Collector).
+- [**Guia de Flow Dimensions, Migração Operacional e Feature Flags**](GUIA_FLOW_DIMENSIONS_E_MIGRACAO_FEATURE_FLAGS.md): Padrão de Flow Dimensions de primeira classe (`variant`), SPI `FeatureEvaluationListener`, segregação dimensional A/B, decomposição matemática de latência e zero contaminação de business code.
 - [**Especificação Técnica para Starter Spring Boot**](ESPECIFICACAO_TECNICA_STARTER_OBSERVABILIDADE.md): Especificação completa e guia para extração da observabilidade em um starter reutilizável por um Agente de IA.
 
 ---

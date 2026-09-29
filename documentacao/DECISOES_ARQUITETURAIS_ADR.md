@@ -300,4 +300,39 @@ Em ambientes de microsserviços modernos, os requisitos operacionais de logs div
 - **Negativas**:
   - Em cenários com volumetria extrema de logs e threads travadas, uma fila assíncrona saturada pode consumir até o limite configurado de memória antes de bloquear ou aplicar backpressure (`neverBlock=false`).
 
+---
+
+## ADR 11: Flow Dimensions e SPI Desacoplada de Feature Flags para Migração Operacional de Rotas
+
+### Status
+Aprovado / Implementado
+
+### Contexto
+Durante migrações operacionais de fluxos de processamento (ex: migração de rotas síncronas HTTP para rotas orientadas a cache e mensageria assíncrona), é praxe utilizar mecanismos de Feature Flags / Feature Toggles para controlar progressivamente a distribuição do tráfego.
+
+Contudo, surgiram dois problemas fundamentais:
+1. **Contaminação de Métricas Agregadas**: Se a métrica de fluxo registrar apenas `flow_total_duration_seconds{flow="..."}`, uma migração onde 50% das requisições vão pela rota legada e 50% pela nova rota resulta em distorção estatística severa. O P50, P95 e P99 tornam-se médias combinadas artificiais que impossibilitam entender a performance isolada de cada rota.
+2. **Poluição de Código de Negócio**: Inserir chamadas diretas como `FlowContext.setVariant("new")` dentro de classes de serviço de negócio acopla regras de domínio com bibliotecas de infraestrutura de observabilidade, violando os princípios de separação de responsabilidades.
+
+### Decisão
+1. **Flow Dimensions de Primeira Classe (`FlowDimensions` e `FlowExecution`)**:
+   - Criação de um modelo thread-safe de dimensões de baixa cardinalidade (`variant`, `feature`, `experiment`) associado ao ciclo de vida do fluxo.
+   - Propagação automática de `variant` para todas as métricas de duração total (`flow_total_duration_seconds`), wall-clock (`observability.flow.duration`), trabalho de componentes (`observability.flow.component.work.duration`) e latência atribuída (`observability.flow.component.attributed.duration`).
+2. **SPI Não-Intrusiva `FeatureEvaluationListener`**:
+   - Criação da interface SPI `com.empresa.platform.observability.core.feature.FeatureEvaluationListener`.
+   - Disponibilização do listener padrão `FlowFeatureEvaluationListener` via autoconfiguração.
+   - Qualquer cliente de feature flags (local, Hazelcast, Unleash, LaunchDarkly) apenas notifica a avaliação da flag. O listener se encarrega de enriquecer o `FlowContext`, o `MDC` e a `Observation` ativa de forma completamente invisível para a aplicação.
+3. **Segregação Dimensional no Tracing e Logs**:
+   - O Span raiz do fluxo e os spans de passos recebem a tag de baixa cardinalidade `variant`.
+   - O MDC recebe `variant`, `feature.name` e `feature.variant`, sendo limpo estritamente ao final do `@TrackFlow`.
+
+### Consequências
+- **Positivas**:
+  - Comparação A/B e Canary operacional direta no Grafana e Prometheus, permitindo avaliar Throughput, SLAs e Decomposição de Latência Atribuída lado a lado.
+  - Zero acoplamento ou poluição no código de serviço das aplicações.
+  - Compatibilidade retroativa integral: fluxos sem flags continuam gerando métricas sem tags adicionais.
+- **Negativas / Cuidados**:
+  - Exige disciplina para manter variantes com baixa cardinalidade (ex: `legacy`, `new`, `v2`, `canary`), evitando utilizar valores dinâmicos ou identificadores de usuários como variantes.
+
+
 

@@ -1,15 +1,18 @@
 package com.gleidsonfersanp.observability.application;
 
+import com.gleidsonfersanp.observability.cache.UserCustomerCache;
 import com.gleidsonfersanp.observability.domain.BillingDto;
 import com.gleidsonfersanp.observability.domain.BillingType;
 import com.gleidsonfersanp.observability.domain.CustomerDto;
 import com.gleidsonfersanp.observability.domain.NotificationResponse;
 import com.gleidsonfersanp.observability.domain.UserProfile;
 import com.gleidsonfersanp.observability.domain.UserRegistrationRequest;
+import com.gleidsonfersanp.observability.feature.FeatureToggleService;
 import com.gleidsonfersanp.observability.integration.BillingClient;
 import com.gleidsonfersanp.observability.integration.CustomerClient;
 import com.gleidsonfersanp.observability.integration.NotificationClient;
 import com.gleidsonfersanp.observability.integration.messaging.KafkaUserProducer;
+import com.gleidsonfersanp.observability.integration.messaging.SqsUserProducer;
 import com.empresa.platform.observability.core.annotation.ObservationTag;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.micrometer.observation.annotation.Observed;
@@ -28,13 +31,24 @@ public class UserOrchestratorService {
     private final BillingClient billingClient;
     private final NotificationClient notificationClient;
     private final KafkaUserProducer kafkaProducer;
+    private final SqsUserProducer sqsUserProducer;
+    private final UserCustomerCache userCustomerCache;
+    private final FeatureToggleService featureToggleService;
 
-    public UserOrchestratorService(CustomerClient customerClient, BillingClient billingClient, 
-                                   NotificationClient notificationClient, KafkaUserProducer kafkaProducer) {
+    public UserOrchestratorService(CustomerClient customerClient,
+                                   BillingClient billingClient,
+                                   NotificationClient notificationClient,
+                                   KafkaUserProducer kafkaProducer,
+                                   SqsUserProducer sqsUserProducer,
+                                   UserCustomerCache userCustomerCache,
+                                   FeatureToggleService featureToggleService) {
         this.customerClient = customerClient;
         this.billingClient = billingClient;
         this.notificationClient = notificationClient;
         this.kafkaProducer = kafkaProducer;
+        this.sqsUserProducer = sqsUserProducer;
+        this.userCustomerCache = userCustomerCache;
+        this.featureToggleService = featureToggleService;
     }
 
     @Observed(name = "user.registration.initiate", contextualName = "initiate-async-registration")
@@ -49,7 +63,13 @@ public class UserOrchestratorService {
     @ObservationTag(key = "flow", expression = "'provisioning'")
     @ObservationTag(key = "customer_plan", expression = "#result?.billing()?.plan()")
     public UserProfile fetchAndProvisionUserProfile(String userId) {
-        
+        if (featureToggleService.isEnabled("user-provisioning-v2")) {
+            return provisionUserProfileV2(userId);
+        }
+        return provisionUserProfileLegacy(userId);
+    }
+
+    private UserProfile provisionUserProfileLegacy(String userId) {
         CustomerDto customer = customerClient.getCustomerInfo(userId);
         BillingDto billing = billingClient.getBillingInfo(userId);
 
@@ -65,6 +85,20 @@ public class UserOrchestratorService {
                 customer,
                 billing,
                 notificationResponse.status()
+        );
+    }
+
+    private UserProfile provisionUserProfileV2(String userId) {
+        // Rota V2 de processamento: Redis Cache -> Billing API -> SQS Queue
+        CustomerDto customer = userCustomerCache.getCustomer(userId);
+        BillingDto billing = billingClient.getBillingInfo(userId);
+        sqsUserProducer.publishWelcomeEmail(userId);
+
+        return new UserProfile(
+                userId,
+                customer,
+                billing,
+                "DELIVERED_ASYNC_SQS"
         );
     }
 
