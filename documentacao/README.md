@@ -82,6 +82,7 @@ flowchart TD
 ## 📂 Estrutura da Documentação
 
 - [**Arquitetura e Fluxos**](README.md): Este documento, contendo visão geral, arquitetura e componentes.
+- [**Como Metrificar por Stack Tecnológica**](GUIA_METRIFICACAO_DAS_STACKS.md): Manual técnico passo a passo de como metrificar cada stack (MVC, Feign, Resilience4j, Kafka, SQS, HikariCP, Tracing, Alarmística).
 - [**Catálogo de Métricas e Queries PromQL**](CATALOGO_DE_METRICAS_E_QUERIES_DASHBOARD.md): Referência exaustiva de todas as formas customizadas de metrificar e as 15 consultas PromQL do Dashboard Grafana.
 - [**Guia de Alarmística, SLAs e Incidentes**](GUIA_DE_ALARMISTICA_E_SLAS.md): Arquitetura de alarmística não-intrusiva em 2 camadas, interceptação de disjuntores, SLA Guard e Prometheus alerts.
 - [**Observabilidade e Métricas**](OBSERVABILIDADE_E_METRICAS.md): Explicação do Aspecto SpEL, tags customizadas, rastreamento de fatias por entrypoint, queries PromQL e estrutura do painel Grafana.
