@@ -174,38 +174,90 @@ Em ambientes de laboratório e nuvem conteinerizada, evitamos a complexidade de 
 - Não bloqueia a thread de execução do Spring.
 - Injeta labels do MDC (*Mapped Diagnostic Context*) diretamente nas streams do Loki.
 
-### 5.3 Configuração do `logback-spring.xml`
+### 5.3 Configuração Padronizada do `logback-spring.xml` (Multi-Perfil e Não-Bloqueante)
+O arquivo `logback-spring.xml` implementa o padrão corporativo com separação de perfis para ambiente de desenvolvimento local (`!container & !prod`) e ambientes em nuvem/contêiner (`container | prod`), além de appenders assíncronos (`AsyncAppender`) para eliminar sobrecarga de I/O nas threads da aplicação:
+
 ```xml
-<configuration>
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="30 seconds">
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %highlight(%-5level) %cyan(%logger{36}) [%X{traceId:-},%X{spanId:-}] - %msg%n</pattern>
-            <charset>utf8</charset>
-        </encoder>
-    </appender>
+    <!-- Propriedades do Contexto Spring -->
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="user-orchestrator"/>
+    <springProperty scope="context" name="LOKI_URL" source="app.observability.loki.url" defaultValue="http://localhost:3100/loki/api/v1/push"/>
 
+    <!-- 1. Appender Loki (Push direto HTTP assíncrono para Loki) -->
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
-            <url>http://localhost:3100/loki/api/v1/push</url>
+            <url>${LOKI_URL}</url>
         </http>
         <format>
             <label>
-                <pattern>app=user-orchestrator,level=%level,leg_type=%X{leg_type:-none},leg_target=%X{leg_target:-none},leg_phase=%X{leg_phase:-none}</pattern>
+                <pattern>app=${APP_NAME},level=%level,leg_type=%X{leg_type:-none},leg_target=%X{leg_target:-none},leg_phase=%X{leg_phase:-none}</pattern>
             </label>
             <message>
-                <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z',UTC}","level":"%level","logger":"%logger","traceId":"%X{traceId:-}","spanId":"%X{spanId:-}","leg_number":"%X{leg_number:-}","leg_parent":"%X{leg_parent:-}","leg_type":"%X{leg_type:-}","leg_phase":"%X{leg_phase:-}","leg_target":"%X{leg_target:-}","leg_duration_ms":"%X{leg_duration_ms:-}","leg_status":"%X{leg_status:-}","message":"%msg"}</pattern>
+                <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z',UTC}","level":"%level","logger":"%logger","correlation_id":"%X{correlation_id:-none}","traceId":"%X{traceId:-}","spanId":"%X{spanId:-}","leg_number":"%X{leg_number:-}","leg_parent":"%X{leg_parent:-}","leg_type":"%X{leg_type:-}","leg_phase":"%X{leg_phase:-}","leg_target":"%X{leg_target:-}","leg_duration_ms":"%X{leg_duration_ms:-}","leg_status":"%X{leg_status:-}","message":"%msg"}</pattern>
             </message>
         </format>
     </appender>
 
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
-        <appender-ref ref="LOKI"/>
-    </root>
+    <!-- 2. Perfil Local/Dev (!container & !prod): Console Colorido com [cid] e [traceId,spanId] -->
+    <springProfile name="!container &amp; !prod">
+        <appender name="CONSOLE_SYNC" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} [cid=%X{correlation_id:-none}] [%X{traceId:-},%X{spanId:-}] %m%n%wEx</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+            <appender-ref ref="CONSOLE_SYNC"/>
+            <queueSize>512</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>false</neverBlock>
+            <includeCallerData>false</includeCallerData>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="ASYNC_CONSOLE"/>
+            <appender-ref ref="LOKI"/>
+        </root>
+    </springProfile>
+
+    <!-- 3. Perfil Nuvem/Container/Prod (container | prod): JSON Estruturado Mono-linha -->
+    <springProfile name="container | prod">
+        <appender name="JSON_CONSOLE_SYNC" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX,UTC}","app":"${APP_NAME}","level":"%p","thread":"%t","logger":"%logger","correlation_id":"%X{correlation_id:-none}","traceId":"%X{traceId:-}","spanId":"%X{spanId:-}","leg_number":"%X{leg_number:-}","leg_parent":"%X{leg_parent:-}","leg_type":"%X{leg_type:-}","leg_phase":"%X{leg_phase:-}","leg_target":"%X{leg_target:-}","leg_duration_ms":"%X{leg_duration_ms:-}","leg_status":"%X{leg_status:-}","message":"%replace(%m){'[\r\n\t]', ' '}","exception":"%replace(%wEx){'[\r\n\t]', ' '}"}%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <appender name="ASYNC_JSON_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+            <appender-ref ref="JSON_CONSOLE_SYNC"/>
+            <queueSize>1024</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>false</neverBlock>
+            <includeCallerData>false</includeCallerData>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="ASYNC_JSON_CONSOLE"/>
+            <appender-ref ref="LOKI"/>
+        </root>
+    </springProfile>
+
+    <!-- 4. Níveis de Log Padronizados -->
+    <logger name="org.springframework.web" level="INFO"/>
+    <logger name="org.apache.kafka" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+    <logger name="io.awspring.cloud.sqs" level="INFO"/>
+    <logger name="com.gleidsonfersanp.observability" level="DEBUG"/>
+    <logger name="AUDIT_LEG_LOGGER" level="INFO"/>
 </configuration>
 ```
+
 
 ---
 
@@ -257,9 +309,15 @@ O dashboard `Observability Master Dashboard` (`obs-master`) foi expandido com tr
    - Consulta LogQL: `sum(count_over_time({app="user-orchestrator", leg_target!="none"}[1m])) by (leg_target, leg_phase)`.
    - Permite comparar o balanço entre requisições enviadas e respostas recebidas por serviço integrado.
 
-3. **Painel 20 — ⏱️ Latência por Perna de Comunicação**:
+3. **Painel 20 — ⏱️ Latência por Perna de Comunicação (Métrica Log-derived via Loki / Prometheus)**:
    - Visualização: `timeseries`.
    - Exibe a média e percentil das latências das fatias de execução de cada perna.
+
+### 📸 Evidência Visual no Grafana: Painéis 18, 19 e 20 (Loki Legs Stream, Volume e Latência)
+![Painéis 18, 19 e 20: Loki Legs Stream, Volume e Latência](evidencias/03-grafana-loki-legs-audit.png)
+
+### 📸 Evidência Visual no Grafana Loki Explore: Streams Estruturados e Rastreabilidade
+![Grafana Loki Explore](evidencias/04-grafana-loki-explore.png)
 
 ---
 

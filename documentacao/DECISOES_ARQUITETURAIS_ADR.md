@@ -15,6 +15,8 @@ Este documento registra formalmente as principais decisões arquiteturais tomada
 - [ADR 07: Engenharia de Caos e Simulação de Falhas Controladas com WireMock e Carga Contínua](#adr-07-engenharia-de-caos-e-simulação-de-falhas-controladas)
 - [ADR 08: Arquitetura de Alarmística Não-Intrusiva em Duas Camadas](#adr-08-arquitetura-de-alarmística-não-intrusiva-em-duas-camadas)
 - [ADR 09: Arquitetura Vendor-Neutral e Estratégia Multi-Provedor (Prometheus, Jaeger, Datadog, OTel)](#adr-09-arquitetura-vendor-neutral-e-estratégia-multi-provedor)
+- [ADR 10: Rastreamento Estruturado de Pernas de Execução (Legs), Auditoria de Payloads e Mascaramento SpEL via Grafana Loki](#adr-10-rastreamento-estruturado-de-pernas-de-execução-legs-auditoria-de-payloads-e-mascaramento-spel-via-grafana-loki)
+- [ADR 11: Padronização Corporativa de Logback Multi-Perfil, Appenders Assíncronos e Propagação de Correlation ID](#adr-11-padronização-corporativa-de-logback-multi-perfil-appenders-assíncronos-e-propagação-de-correlation-id)
 
 ---
 
@@ -259,5 +261,43 @@ Em arquiteturas de microsserviços e orquestradores distribuídos, a visualizaç
   - Integração perfeita no Grafana: navegação fluida de Métricas ➔ Logs do Loki ➔ Traces do Jaeger com um clique.
 - **Negativas**:
   - Pequeno overhead de serialização JSON em métodos anotados com `includePayload = true`, devendo ser desabilitado ou reservado para fronteiras críticas em cenários de altíssimo throughput.
+
+---
+
+## ADR 11: Padronização Corporativa de Logback Multi-Perfil, Appenders Assíncronos e Propagação de Correlation ID
+
+### Contexto
+Em ambientes de microsserviços modernos, os requisitos operacionais de logs divergem radicalmente entre o ambiente de desenvolvimento local e a infraestrutura produtiva:
+1. **Ambiente Local/Dev**: Desenvolvedores precisam de logs visualmente legíveis no terminal, com colorização ANSI (%highlight, %cyan, %clr), fácil identificação de threads, timestamps locais e exibição de correlation IDs (`[cid=...]`) e trace identifiers (`[traceId,spanId]`).
+2. **Ambiente de Contêiner/Produção (Kubernetes, AWS ECS, CloudWatch, Datadog)**: Agentes de coleta e centralização de logs (Fluentbit, Vector, Promtail, CloudWatch Agent) exigem **JSON estritamente estruturado em uma linha por evento**, com campos padronizados (`timestamp`, `app`, `level`, `logger`, `thread`, `correlation_id`, `traceId`, `spanId`, `leg_*`, `message`, `exception`) e sanitização de quebras de linha para evitar o anti-padrão de stack traces fracionados em centenas de entradas no agregador.
+3. **Desempenho e Não-Bloqueio**: A escrita síncrona em `System.out` / disco dentro de threads de requisição HTTP ou mensageria introduz latência de I/O crítica sob alta concorrência.
+4. **Continuidade de Rastreabilidade Ponta a Ponta**: A ausência de um Correlation ID propagado unificadamente através de fronteiras HTTP (Inbound e Outbound via Feign) e filas de mensageria assíncrona (Kafka e SQS) quebra a capacidade de rastreio de solicitações que trafegam entre múltiplos sistemas.
+
+### Decisão
+1. **Separação Arquitetural Multi-Perfil no `logback-spring.xml`**:
+   - Perfil `!container & !prod` (Local / Dev / Test):
+     - `CONSOLE_SYNC` com destaque de cores ANSI e padrão:
+       `%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} [cid=%X{correlation_id:-none}] [%X{traceId:-},%X{spanId:-}] %m%n%wEx`
+     - Empacotado em `ASYNC_CONSOLE` (`ch.qos.logback.classic.AsyncAppender`) com fila não descartável (`discardingThreshold=0`, `queueSize=512`).
+   - Perfil `container | prod` (Produção / Cloud / Kubernetes):
+     - `JSON_CONSOLE_SYNC` com `PatternLayoutEncoder` emitindo JSON estruturado mono-linha compatível com OTel, ECS e CloudWatch.
+     - Sanitização de CRLF no corpo da mensagem e stack trace via `%replace(%m){'[\r\n\t]', ' '}` e `%replace(%wEx){'[\r\n\t]', ' '}`.
+     - Empacotado em `ASYNC_JSON_CONSOLE` com `queueSize=1024` e `discardingThreshold=0`.
+2. **Appender Nativo Grafana Loki Mantido e Padronizado**:
+   - `Loki4jAppender` integrado nas raízes de logging para push direto via HTTP assíncrono para `${LOKI_URL}`, indexando labels (`app`, `level`, `leg_type`, `leg_target`, `leg_phase`) e emitindo JSON completo com correlation ID e pernas.
+3. **Módulo de Correlação de Ponta a Ponta (`CorrelationContext`, `CorrelationIdFilter`, Feign e Mensageria)**:
+   - `CorrelationIdFilter`: Intercepta requisições HTTP servlet com `HIGHEST_PRECEDENCE`. Resgata `X-Correlation-Id` (ou `X-Request-Id` / `correlation-id`) ou gera um UUID v4. Injeta em `MDC`, no cabeçalho de resposta HTTP e define atributos de requisição herdáveis (`RequestContextHolder.setRequestAttributes(..., true)`).
+   - Integração com `ContextRegistry` do Micrometer (`ThreadLocalAccessor`) para propagação automática em pools de execução assíncrona (ex.: TimeLimiter / Circuit Breakers).
+   - `FeignConfig`: Injeta interceptor de requisição que propaga o `X-Correlation-Id` em todas as chamadas HTTP downstream (`CustomerClient`, `BillingClient`, `NotificationClient`).
+   - Produtores e Consumidores Kafka e SQS: Propagam e extraem o cabeçalho `X-Correlation-Id` nos envelopes de mensageria.
+
+### Consequências
+- **Positivas**:
+  - Padrão corporativo unificado entre times locais e ambientes em nuvem.
+  - Zero bloqueio de I/O em threads de processamento devido aos Appenders assíncronos.
+  - Formato JSON impecável para ingestão direta por coletores cloud sem necessidade de regex complexos no agente.
+  - Correlação imediata de qualquer falha através de `correlation_id` e `traceId` nos logs, no Grafana Loki e no Jaeger.
+- **Negativas**:
+  - Em cenários com volumetria extrema de logs e threads travadas, uma fila assíncrona saturada pode consumir até o limite configurado de memória antes de bloquear ou aplicar backpressure (`neverBlock=false`).
 
 

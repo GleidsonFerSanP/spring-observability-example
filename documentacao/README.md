@@ -95,6 +95,18 @@ flowchart TD
 
 ---
 
+## 📸 Evidências Visuais e Dashboards em Operação
+
+| Topo: Decomposição de Entrada, SLAs e Circuit Breakers | Meio: Central de Alarmística e Diagnóstico de Dead Stop |
+| :---: | :---: |
+| ![Topo do Dashboard](evidencias/01-grafana-dashboard-top.png) | ![Dead Stop e Alarmística](evidencias/02-grafana-deadstop-e-alarmistica.png) |
+
+| Fundo: Pernas de Execução (Legs), Auditoria e Latência | Loki Explore: Streams Estruturados e Rastreabilidade |
+| :---: | :---: |
+| ![Loki Legs Stream](evidencias/03-grafana-loki-legs-audit.png) | ![Loki Explore](evidencias/04-grafana-loki-explore.png) |
+
+---
+
 ## 🚀 Como Executar o Ambiente
 
 ### 1. Pré-requisitos

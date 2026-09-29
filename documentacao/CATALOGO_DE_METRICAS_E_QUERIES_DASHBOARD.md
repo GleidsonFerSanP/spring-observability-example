@@ -233,6 +233,22 @@ Abaixo está a especificação completa de cada painel configurado no arquivo [`
 
 ---
 
+### 📸 Visão Geral dos Painéis e Evidências Visuais
+
+#### 1. Topo do Dashboard (Entrypoints, SLAs, Circuit Breakers, Throughput, Kafka e SQS)
+![Topo do Dashboard](evidencias/01-grafana-dashboard-top.png)
+
+#### 2. Quadrante Central (Alarmística, Violações de SLA e Diagnóstico de Dead Stop)
+![Dead Stop e Alarmística](evidencias/02-grafana-deadstop-e-alarmistica.png)
+
+#### 3. Quadrante Inferior (Pernas de Comunicação, Auditoria Loki e Latência de Legs)
+![Painéis 18, 19 e 20: Loki Legs Stream, Volume e Latência](evidencias/03-grafana-loki-legs-audit.png)
+
+#### 4. Grafana Loki Explore (Stream Estruturado de Logs com traceId e SpEL Masking)
+![Grafana Loki Explore](evidencias/04-grafana-loki-explore.png)
+
+---
+
 ### Detalhamento Painel por Painel
 
 #### Painel ID 1: `🥧 Entrypoint REST Síncrono: GET /users/{userId}`
@@ -536,7 +552,7 @@ Abaixo está a especificação completa de cada painel configurado no arquivo [`
 - **Unidade**: Segundos (`s`)
 - **Consulta PromQL**:
   ```promql
-  sum(rate(flow_slice_duration_seconds_sum{step=~"step.api.*"}[1m])) by (step) / sum(rate(flow_slice_duration_seconds_count{step=~"step.api.*"}[1m])) by (step)
+  sum(rate(flow_slice_duration_seconds_sum{step=~"API.*"}[1m])) by (step) / sum(rate(flow_slice_duration_seconds_count{step=~"API.*"}[1m])) by (step)
   ```
 - **Legenda**: `Média Latência: {{step}}`
 - **Racional Matemático e Operacional**:

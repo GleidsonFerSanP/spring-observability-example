@@ -123,6 +123,9 @@ O painel foi desenhado visando máxima legibilidade e ergonomia, sem truncamento
 ### Linha 1: 🥧 Decomposição de Latência E2E por Fluxo (Gráficos de Pizza)
 Cada gráfico representa 100% do tempo de um fluxo específico, dividido estritamente em suas fatias internas:
 
+### 📸 Evidência Visual no Grafana: Decomposição de Entrada, SLAs e Saúde das Integrações
+![Topo do Dashboard](evidencias/01-grafana-dashboard-top.png)
+
 #### Painel 1.1: `🥧 Entrypoint REST Síncrono: GET /users/{userId}`
 - **Tipo**: Pie Chart (Donut)
 - **Consulta PromQL**:
@@ -290,4 +293,20 @@ flow_interruption_total{flow="...", failed_step="...", error_type="..."}
   sum by (flow, failed_step, error_type) (flow_interruption_total)
   ```
 - **Navegação com Exemplars (Métrica -> Trace)**: Os gráficos de latência e erro do Prometheus possuem marcações clicáveis (Exemplars) com o `trace_id`, abrindo a árvore do Jaeger diretamente na interface do Grafana.
+
+### 📸 Evidência Visual no Grafana: Central de Alarmística e Diagnóstico de Dead Stop
+![Dead Stop e Alarmística](evidencias/02-grafana-deadstop-e-alarmistica.png)
+
+---
+
+## 📜 9. Auditoria de Pernas de Execução (Legs) e Grafana Loki
+
+O mecanismo de **Legs (Pernas de Comunicação)** captura o fluxo granular de requisições e respostas nas fronteiras do sistema com auditoria de payloads e mascaramento automático via SpEL, enviando streams de log estruturados em formato JSON diretamente para o **Grafana Loki**.
+
+### 📸 Evidência Visual no Grafana: Painéis 18, 19 e 20 (Loki Legs Stream, Volume e Latência)
+![Painéis 18, 19 e 20: Loki Legs Stream, Volume e Latência](evidencias/03-grafana-loki-legs-audit.png)
+
+### 📸 Evidência Visual no Grafana Loki Explore: Streams Estruturados e Rastreabilidade
+![Grafana Loki Explore](evidencias/04-grafana-loki-explore.png)
+
 

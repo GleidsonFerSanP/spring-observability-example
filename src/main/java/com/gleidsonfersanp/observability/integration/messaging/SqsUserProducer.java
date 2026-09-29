@@ -1,12 +1,13 @@
 package com.gleidsonfersanp.observability.integration.messaging;
 
+import com.gleidsonfersanp.observability.observability.ObservationTag;
+import com.gleidsonfersanp.observability.observability.correlation.CorrelationContext;
+import com.gleidsonfersanp.observability.observability.flow.TrackStep;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
+import io.micrometer.observation.annotation.Observed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import io.micrometer.observation.annotation.Observed;
-import com.gleidsonfersanp.observability.observability.ObservationTag;
-import com.gleidsonfersanp.observability.observability.flow.TrackStep;
 
 @Component
 public class SqsUserProducer {
@@ -25,7 +26,10 @@ public class SqsUserProducer {
     public void publishUserAudit(String action, String userId, String details) {
         String payload = String.format("[%s] User: %s - %s", action, userId, details);
         log.info("Publishing user audit event to SQS: {}", payload);
-        sqsTemplate.send(to -> to.queue("user-audit-queue").payload(payload));
+        String cid = CorrelationContext.generateOrGet();
+        sqsTemplate.send(to -> to.queue("user-audit-queue")
+                .payload(payload)
+                .header(CorrelationContext.CORRELATION_ID_HEADER, cid));
     }
 
     @Observed(name = "messaging.produce", contextualName = "sqs-welcome-produce")
@@ -34,6 +38,9 @@ public class SqsUserProducer {
     @TrackStep("Publicação SQS (welcome-email-queue)")
     public void publishWelcomeEmail(String userId) {
         log.info("Publishing welcome email event to SQS: {}", userId);
-        sqsTemplate.send(to -> to.queue("welcome-email-queue").payload(userId));
+        String cid = CorrelationContext.generateOrGet();
+        sqsTemplate.send(to -> to.queue("welcome-email-queue")
+                .payload(userId)
+                .header(CorrelationContext.CORRELATION_ID_HEADER, cid));
     }
 }

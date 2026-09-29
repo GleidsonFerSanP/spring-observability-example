@@ -14,16 +14,38 @@ A documentação detalhada da arquitetura, observabilidade e engenharia de caos 
 - [**Guia de Testes de Integração, E2E e Validação da Telemetria**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_TESTES_E2E_E_INTEGRACAO.md)
 - [**Cenários de Teste, Caos e Validação**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/CENARIOS_DE_TESTE_E_CAOS.md)
 
+## 📸 Evidências Visuais e Dashboards
+
+| Topo: Decomposição de Entrada, SLAs e Circuit Breakers | Meio: Central de Alarmística e Diagnóstico de Dead Stop |
+| :---: | :---: |
+| ![Topo do Dashboard](documentacao/evidencias/01-grafana-dashboard-top.png) | ![Dead Stop e Alarmística](documentacao/evidencias/02-grafana-deadstop-e-alarmistica.png) |
+
+| Fundo: Pernas de Execução (Legs), Auditoria e Latência | Loki Explore: Streams Estruturados e Rastreabilidade |
+| :---: | :---: |
+| ![Loki Legs Stream](documentacao/evidencias/03-grafana-loki-legs-audit.png) | ![Loki Explore](documentacao/evidencias/04-grafana-loki-explore.png) |
+
 ## 🧪 Testes Automatizados (Stubs sobre Mocks & Validação da Telemetria)
-A aplicação conta com uma suíte de 17 testes de integração e ponta a ponta (E2E) que comprovam toda a telemetria (Logs, Métricas e Traces/SpEL) sem necessidade de mocks:
+A aplicação conta com uma suíte de 21 testes de integração e ponta a ponta (E2E) que comprovam toda a telemetria (Logs, Métricas e Traces/SpEL) sem necessidade de mocks:
 ```bash
 # Executar todos os testes
 mvn test
 
 # Executar suíte específica (ex: E2E Síncrono)
 mvn test -Dtest=UserOrchestratorE2EObservabilityIntegrationTest
+
+# Executar suíte de Correlation ID e Logback Padronizado
+mvn test -Dtest=CorrelationAndStandardLogbackIntegrationTest
 ```
 Consulte o [**Guia de Testes de Integração e E2E**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_TESTES_E2E_E_INTEGRACAO.md) para detalhes da arquitetura de testes e templates.
+
+## 📜 Padronização de Logs (Logback Multi-Perfil & Correlation ID)
+O logging da aplicação segue o padrão corporativo com separação de perfis e appenders assíncronos:
+- **Dev/Local (`!container & !prod`)**: Console colorido com identificação de threads, `[cid=...]` e trace context `[%X{traceId},%X{spanId}]`.
+- **Produção/Cloud (`container | prod`)**: Console em formato JSON estruturado (`JSON_CONSOLE`) mono-linha com atributos de correlação, pernas (`leg_*`) e sanitização de quebras de linha (`CRLF`).
+- **Appenders Assíncronos (`AsyncAppender`)**: Escrita de logs em fila sem bloquear threads de negócio.
+- **Grafana Loki (`Loki4jAppender`)**: Push direto assíncrono para o Loki (`:3100`) com indexação de labels (`app`, `level`, `leg_type`, `leg_target`, `leg_phase`).
+- **Propagação de Correlation ID (`X-Correlation-Id` / `cid`)**: Interceptação na entrada HTTP (`CorrelationIdFilter`), propagação downstream no Feign e envelopes Kafka e SQS.
+
 
 ## Como Rodar o Ambiente
 Suba todos os serviços base:
