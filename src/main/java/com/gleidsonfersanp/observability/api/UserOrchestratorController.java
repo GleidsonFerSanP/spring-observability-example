@@ -11,6 +11,7 @@ import com.gleidsonfersanp.observability.application.UserOrchestratorService;
 import com.gleidsonfersanp.observability.domain.AuditLogRepository;
 import com.gleidsonfersanp.observability.domain.UserProfile;
 import com.gleidsonfersanp.observability.domain.UserRegistrationRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,7 +28,7 @@ public class UserOrchestratorController {
 
     public UserOrchestratorController(UserOrchestratorService orchestratorService,
                                       AuditLogRepository auditLogRepository,
-                                      AlertDispatcher alertDispatcher) {
+                                      @Autowired(required = false) AlertDispatcher alertDispatcher) {
         this.orchestratorService = orchestratorService;
         this.auditLogRepository = auditLogRepository;
         this.alertDispatcher = alertDispatcher;
@@ -74,6 +75,6 @@ public class UserOrchestratorController {
 
     @GetMapping("/alerts")
     public ResponseEntity<List<AlertEvent>> getRecentAlerts() {
-        return ResponseEntity.ok(alertDispatcher.getRecentAlerts());
+        return ResponseEntity.ok(alertDispatcher != null ? alertDispatcher.getRecentAlerts() : List.of());
     }
 }
