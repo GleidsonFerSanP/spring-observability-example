@@ -61,48 +61,14 @@ Para evitar *hardcoding* de nomes de filas no código Java, a classe [`SqsMetric
 
 ---
 
-## 📊 4. Especificação dos Painéis do Grafana (`grafana-dashboard.json`)
+## 🔗 4. Catálogo Canônico de Métricas e Queries PromQL
 
-O painel está organizado em 4 seções estratégicas:
+Para consultar a especificação completa de **todas as 15 consultas PromQL**, fórmulas matemáticas, mapeamentos de valor e os detalhes técnicos de cada painel do Grafana, consulte o documento dedicado:
+👉 **[Catálogo de Métricas Customizadas e Consultas PromQL do Dashboard](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/CATALOGO_DE_METRICAS_E_QUERIES_DASHBOARD.md)**.
 
-### Painel 1: ⏱ Latência Ponta a Ponta (E2E)
-- **Objetivo**: Medir o tempo total do fluxo `fetchAndProvisionUserProfile`.
-- **Média (s)**:
-  ```promql
-  sum(rate(user_profile_provision_seconds_sum[1m])) / sum(rate(user_profile_provision_seconds_count[1m]))
-  ```
-- **Pico Máximo (s)**:
-  ```promql
-  max(user_profile_provision_seconds_max)
-  ```
+---
 
-### Painel 2: 🔪 Fatias de Latência por Integração (Feign)
-- **Objetivo**: Isolar o tempo gasto em cada serviço externo para identificar gargalos.
-- **Consulta**:
-  ```promql
-  sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group="none", name=~"customer-service|billing-service|notification-service"}[1m])) by (name)
-  /
-  sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group="none", name=~"customer-service|billing-service|notification-service"}[1m])) by (name)
-  ```
-
-### Painéis 3, 4 e 5: 🚦 Saúde das Integrações (Cards Stat)
-- **Estado dos Circuit Breakers**:
-  ```promql
-  resilience4j_circuitbreaker_state{group="none", name=~"customer-service|billing-service|notification-service", state="closed"}
-  ```
-  *(1 = 🟢 FECHADO, 0 = 🔴 ABERTO)*
-- **Taxa de Erros (%)**:
-  ```promql
-  sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group="none", kind="failed"}[5m])) by (name)
-  /
-  (sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group="none", kind="successful"}[5m])) by (name) + sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group="none", kind="failed"}[5m])) by (name)) * 100
-  ```
-- **Throughput (req/s)**:
-  ```promql
-  sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group="none", name=~"customer-service|billing-service|notification-service"}[1m])) by (name)
-  ```
-
-## 🥧 4. Decomposição de Latência por Fluxo de Entrada (`@TrackFlow` e `@TrackStep`)
+## 🥧 5. Decomposição de Latência por Fluxo de Entrada (`@TrackFlow` e `@TrackStep`)
 
 ### O Problema do Gráfico de Pizza Global
 Em arquiteturas de microsserviços, tentar criar um gráfico de pizza somando métricas globais de clientes HTTP (como `resilience4j_circuitbreaker_calls_seconds`) e mensageria gera distorções graves:
@@ -138,7 +104,7 @@ Implementamos um mecanismo desacoplado e não-intrusivo para rastrear o ciclo de
 
 ---
 
-## 📈 5. Monitoramento Autoritativo de Kafka Lag (`KafkaLagMetricsBinder`)
+## 📈 6. Monitoramento Autoritativo de Kafka Lag (`KafkaLagMetricsBinder`)
 
 Para garantir que o lag do Kafka seja monitorado com precisão no Grafana mesmo sob cargas extremas ou sem consumidores ativos, implementamos [`KafkaLagMetricsBinder`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/src/main/java/com/gleidsonfersanp/observability/observability/KafkaLagMetricsBinder.java):
 1. Cria uma instância de `AdminClient` do Apache Kafka a partir das configurações do Spring.
@@ -150,7 +116,7 @@ Para garantir que o lag do Kafka seja monitorado com precisão no Grafana mesmo 
 
 ---
 
-## 📊 6. Especificação dos Painéis do Grafana (`grafana-dashboard.json`)
+## 📊 7. Especificação dos Painéis do Grafana (`grafana-dashboard.json`)
 
 O painel foi desenhado visando máxima legibilidade e ergonomia, sem truncamento de textos:
 
@@ -265,7 +231,7 @@ Três cards largos (`w: 8`, `h: 4`) para evitar qualquer truncamento de texto:
 
 ---
 
-## 🗄️ 7. Observabilidade de Banco de Dados Relacional (PostgreSQL / HikariCP)
+## 🗄️ 8. Observabilidade de Banco de Dados Relacional (PostgreSQL / HikariCP)
 
 A aplicação foi estendida para garantir total visibilidade sobre o comportamento de chamadas a bancos de dados relacionais e da gerência do pool de conexões (HikariCP). Isso permite analisar de perto a latência de consultas e também agir de forma preditiva sobre o uso e esgotamento do pool.
 
