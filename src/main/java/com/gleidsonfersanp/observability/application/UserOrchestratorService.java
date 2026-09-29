@@ -10,7 +10,6 @@ import com.gleidsonfersanp.observability.integration.BillingClient;
 import com.gleidsonfersanp.observability.integration.CustomerClient;
 import com.gleidsonfersanp.observability.integration.NotificationClient;
 import com.gleidsonfersanp.observability.integration.messaging.KafkaUserProducer;
-import com.gleidsonfersanp.observability.observability.ObservationTag;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.micrometer.observation.annotation.Observed;
 import org.slf4j.Logger;
@@ -38,16 +37,12 @@ public class UserOrchestratorService {
     }
 
     @Observed(name = "user.registration.initiate", contextualName = "initiate-async-registration")
-    @ObservationTag(key = "userId", expression = "#request.userId()", highCardinality = true)
     public void initiateUserRegistration(UserRegistrationRequest request) {
         kafkaProducer.publishUserRegistration(request);
     }
 
     @CircuitBreaker(name = "orchestrator", fallbackMethod = "orchestratorFallback")
     @Observed(name = "user.profile.provision", contextualName = "provision-user-profile")
-    @ObservationTag(key = "userId", expression = "#userId", highCardinality = true)
-    @ObservationTag(key = "flow", expression = "'provisioning'")
-    @ObservationTag(key = "customer_plan", expression = "#result?.billing()?.plan()")
     public UserProfile fetchAndProvisionUserProfile(String userId) {
         
         CustomerDto customer = customerClient.getCustomerInfo(userId);

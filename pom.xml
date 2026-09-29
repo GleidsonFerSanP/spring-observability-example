@@ -95,31 +95,12 @@
         </dependency>
         
         
-        <!-- AOP is needed for Resilience4j annotations -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-aop</artifactId>
-        </dependency>
-
         <!-- Resilience4j Circuit Breaker -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
         </dependency>
         
-        <!-- Micrometer Tracing with OpenTelemetry Bridge -->
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-tracing-bridge-otel</artifactId>
-        </dependency>
-        
-        <!-- OpenTelemetry Exporter (OTLP) -->
-        <dependency>
-            <groupId>io.opentelemetry</groupId>
-            <artifactId>opentelemetry-exporter-otlp</artifactId>
-        </dependency>
-
-    
         <!-- Spring Kafka -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
