@@ -11,7 +11,19 @@ A documentação detalhada da arquitetura, observabilidade e engenharia de caos 
 - [**Guia de Alarmística, SLAs e Incidentes**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_ALARMISTICA_E_SLAS.md)
 - [**Guia de Observabilidade, SpEL e Métricas**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/OBSERVABILIDADE_E_METRICAS.md)
 - [**Guia de Abstração de Vendors e Provedores**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_ABSTRACAO_DE_VENDORS_E_PROVEDORES.md)
+- [**Guia de Testes de Integração, E2E e Validação da Telemetria**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_TESTES_E2E_E_INTEGRACAO.md)
 - [**Cenários de Teste, Caos e Validação**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/CENARIOS_DE_TESTE_E_CAOS.md)
+
+## 🧪 Testes Automatizados (Stubs sobre Mocks & Validação da Telemetria)
+A aplicação conta com uma suíte de 17 testes de integração e ponta a ponta (E2E) que comprovam toda a telemetria (Logs, Métricas e Traces/SpEL) sem necessidade de mocks:
+```bash
+# Executar todos os testes
+mvn test
+
+# Executar suíte específica (ex: E2E Síncrono)
+mvn test -Dtest=UserOrchestratorE2EObservabilityIntegrationTest
+```
+Consulte o [**Guia de Testes de Integração e E2E**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_TESTES_E2E_E_INTEGRACAO.md) para detalhes da arquitetura de testes e templates.
 
 ## Como Rodar o Ambiente
 Suba todos os serviços base:

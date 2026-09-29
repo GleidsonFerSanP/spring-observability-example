@@ -88,6 +88,7 @@ flowchart TD
 - [**Guia de Alarmística, SLAs e Incidentes**](GUIA_DE_ALARMISTICA_E_SLAS.md): Arquitetura de alarmística não-intrusiva em 2 camadas, interceptação de disjuntores, SLA Guard e Prometheus alerts.
 - [**Observabilidade e Métricas**](OBSERVABILIDADE_E_METRICAS.md): Explicação do Aspecto SpEL, tags customizadas, rastreamento de fatias por entrypoint, queries PromQL e estrutura do painel Grafana.
 - [**Registro de Decisões Arquiteturais (ADRs)**](DECISOES_ARQUITETURAIS_ADR.md): Racional detalhado de todas as 10 decisões tomadas, problemas, soluções e trade-offs.
+- [**Guia de Testes de Integração, E2E e Validação da Telemetria**](GUIA_DE_TESTES_E2E_E_INTEGRACAO.md): Metodologia de Stubs sobre Mocks, asserção da tríade de telemetria (Logs, Métricas e Traces), catálogo das suítes de teste e guia de como usar/executar.
 - [**Cenários de Teste e Caos**](CENARIOS_DE_TESTE_E_CAOS.md): Detalhamento dos cenários de teste de carga contínua, simulação de falhas e disjuntores.
 - [**Guia de Abstração de Vendors e Provedores**](GUIA_DE_ABSTRACAO_DE_VENDORS_E_PROVEDORES.md): Arquitetura agnóstica de fornecedor (Prometheus, Jaeger, Loki, Datadog via OTLP, Dynatrace, New Relic, OTel Collector).
 - [**Especificação Técnica para Starter Spring Boot**](ESPECIFICACAO_TECNICA_STARTER_OBSERVABILIDADE.md): Especificação completa e guia para extração da observabilidade em um starter reutilizável por um Agente de IA.

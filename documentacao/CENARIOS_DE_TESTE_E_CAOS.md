@@ -1,6 +1,9 @@
 # Cenários de Teste, Caos e Validação
 
-Este documento explica como simular cenários de alta carga e engenharia de caos para validar a resiliência e a observabilidade da aplicação.
+Este documento explica como simular cenários de alta carga e engenharia de caos para validar a resiliência e a observabilidade da aplicação, tanto de forma manual (via scripts e curl) quanto de forma automatizada via suítes de testes de integração.
+
+> [!TIP]
+> **Testes Automatizados (CI/CD)**: Todos os cenários de caos, SLAs, quebras de disjuntor e esgotamento de pool HikariCP possuem testes de integração automatizados que rodam via `mvn test`. Para consultar o guia detalhado dos testes, consulte o [**Guia de Testes de Integração e E2E**](GUIA_DE_TESTES_E2E_E_INTEGRACAO.md).
 
 ---
 
