@@ -62,6 +62,16 @@ public class FlowContext {
                 .increment();
     }
 
+    public static boolean hasInterruption() {
+        Deque<FlowContext> stack = CURRENT_FLOW.get();
+        return !stack.isEmpty() && stack.peek().failedStep != null;
+    }
+
+    public static String getFailedStep() {
+        Deque<FlowContext> stack = CURRENT_FLOW.get();
+        return (!stack.isEmpty()) ? stack.peek().failedStep : null;
+    }
+
     public static void complete(MeterRegistry registry) {
         Deque<FlowContext> stack = CURRENT_FLOW.get();
         if (stack.isEmpty()) {

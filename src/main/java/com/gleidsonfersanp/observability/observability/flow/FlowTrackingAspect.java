@@ -49,7 +49,14 @@ public class FlowTrackingAspect {
 
         FlowContext.start(flowName);
         try (Observation.Scope scope = flowObservation.openScope()) {
-            return joinPoint.proceed();
+            Object result = joinPoint.proceed();
+            if (FlowContext.hasInterruption()) {
+                flowObservation.lowCardinalityKeyValue("flow.status", "DEGRADED_FALLBACK");
+                flowObservation.highCardinalityKeyValue("flow.failed_step", FlowContext.getFailedStep());
+            } else {
+                flowObservation.lowCardinalityKeyValue("flow.status", "SUCCESS");
+            }
+            return result;
         } catch (Throwable t) {
             flowObservation.error(t);
             flowObservation.lowCardinalityKeyValue("flow.status", "INTERRUPTED");
