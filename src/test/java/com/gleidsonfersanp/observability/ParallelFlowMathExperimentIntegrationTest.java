@@ -1,6 +1,6 @@
 package com.gleidsonfersanp.observability;
 
-import com.gleidsonfersanp.observability.observability.flow.FlowContext;
+import com.empresa.platform.observability.core.flow.FlowContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.junit.jupiter.api.BeforeEach;

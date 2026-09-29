@@ -2,7 +2,7 @@ package com.gleidsonfersanp.observability;
 
 import com.gleidsonfersanp.observability.domain.CustomerDto;
 import com.gleidsonfersanp.observability.domain.UserRegistrationRequest;
-import com.gleidsonfersanp.observability.observability.ObservationTag;
+import com.empresa.platform.observability.core.annotation.ObservationTag;
 import io.micrometer.common.KeyValue;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;

@@ -2,7 +2,8 @@ package com.gleidsonfersanp.observability;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gleidsonfersanp.observability.observability.leg.*;
+import com.empresa.platform.observability.core.leg.*;
+import com.empresa.platform.observability.core.annotation.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
