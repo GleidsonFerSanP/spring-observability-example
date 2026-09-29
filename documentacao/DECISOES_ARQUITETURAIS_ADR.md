@@ -14,6 +14,7 @@ Este documento registra formalmente as principais decisões arquiteturais tomada
 - [ADR 06: Ergonomia Visual e Prevenção de Truncamento no Grafana](#adr-06-ergonomia-visual-e-prevenção-de-truncamento-no-grafana)
 - [ADR 07: Engenharia de Caos e Simulação de Falhas Controladas com WireMock e Carga Contínua](#adr-07-engenharia-de-caos-e-simulação-de-falhas-controladas)
 - [ADR 08: Arquitetura de Alarmística Não-Intrusiva em Duas Camadas](#adr-08-arquitetura-de-alarmística-não-intrusiva-em-duas-camadas)
+- [ADR 09: Arquitetura Vendor-Neutral e Estratégia Multi-Provedor (Prometheus, Jaeger, Datadog, OTel)](#adr-09-arquitetura-vendor-neutral-e-estratégia-multi-provedor)
 
 ---
 
@@ -189,4 +190,36 @@ Estruturar a solução de alarmística em duas camadas complementares e desacopl
 ### Consequências
 - **Positivas**: Resposta imediata a incidentes na JVM; zero código de telemetria dentro das regras de negócio; arquitetura facilmente empacotável em um Starter corporativo compartilhado; correlação nativa entre métricas in-app e alertas do Prometheus.
 - **Negativas**: Exige definição e calibração de limites de SLA (`application.yml`) para evitar falsos positivos em ambientes de teste.
+
+---
+
+## ADR 09: Arquitetura Vendor-Neutral e Estratégia Multi-Provedor
+
+### Contexto
+Organizações utilizam diferentes ecossistemas de telemetria entre ambientes:
+- Em **desenvolvimento local, CI e testes**: é mandatório o uso de ferramentas gratuitas, leves e de código aberto (Prometheus, Jaeger, LocalStack, Grafana) para viabilizar testes sem custos de licença.
+- Em **produção corporativa**: utilizam-se plataformas SaaS consolidadas (Datadog, Dynatrace, New Relic) ou coletores centrais (OpenTelemetry Collector).
+
+O risco clássico é o **Vendor Lock-in**: desenvolvedores adicionam bibliotecas proprietárias (ex: `dd-trace-java`, SDKs da Datadog ou New Relic) diretamente nos serviços ou criam lógicas atreladas ao formato de métricas do Prometheus, inviabilizando a portabilidade da aplicação e do starter corporativo.
+
+### Decisão
+1. **Padrão Facade com Micrometer Observation e OpenTelemetry Standard**:
+   - Todo o código de aplicação e aspectos baseia-se unicamente nas abstrações `ObservationRegistry` e `MeterRegistry`.
+   - Nenhum pacote ou classe de fornecedor proprietário é importado no código Java (`com.datadoghq.*`, `io.jaegertracing.*`, etc.).
+2. **Ponte de Padronização Aberta**:
+   - Adotar `micrometer-tracing-bridge-otel` e `opentelemetry-exporter-otlp` como mecanismo padrão de emissão de traces e métricas.
+3. **Estratégia de Ingestão por Ambiente**:
+   - **Ambiente Local**: OTLP HTTP (`:4318`) enviando para o container do Jaeger; métricas expostas via endpoint `/actuator/prometheus` raspadas pelo Prometheus.
+   - **Ambiente Datadog**:
+     - *Opção Primária*: Envio OTLP direto para a porta `:4318` do Datadog Agent (nativo no Datadog v7.35+), sem qualquer biblioteca Datadog no Spring Boot.
+     - *Opção Secundária*: Inclusão plugável de `micrometer-registry-datadog` para push direto via API da Datadog.
+   - **Ambientes Dynatrace / New Relic / OTel Collector**: Mesma ponte OTLP, variando apenas o endpoint e cabeçalhos de autenticação no `application.yml`.
+
+### Consequências
+- **Positivas**:
+  - 100% de reutilização de código entre ambientes locais e corporativos.
+  - O starter Spring Boot pode ser adotado por qualquer time da empresa, independentemente de qual backend de APM/Métricas a diretoria escolher no futuro.
+  - Conformidade estrita com o padrão global OpenTelemetry (W3C Trace Context).
+- **Negativas**:
+  - Requer que o Datadog Agent ou backend de destino esteja com o receptor OTLP habilitado (padrão em infraestruturas modernas de Kubernetes).
 

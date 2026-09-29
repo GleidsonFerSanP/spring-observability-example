@@ -500,3 +500,173 @@ Abaixo está a especificação completa de cada painel configurado no arquivo [`
    - Métricas de alta frequência nunca usam tags como `userId`, `traceId` ou payload da mensagem. Apenas categorias finitas (`flow`, `step`, `status`, `name`, `severity`) são promovidas a tags do Micrometer. Tags dinâmicas pertencem exclusivamente ao Tracing distribuído (Jaeger).
 4. **Isolamento de Janela de Scrape**:
    - A janela de amostragem mínima nas queries foi fixada em `[1m]`, suportando perfeitamente o intervalo de scrape de 15 segundos do Prometheus (garantindo pelo menos 4 pontos de coleta por janela).
+
+---
+
+## 🎯 6. Guia Avançado: Consultas para Recursos Específicos (Label Matchers & Variáveis Grafana)
+
+Para responder a perguntas direcionadas sobre um componente isolado (ex: *"como está apenas a fila X?"* ou *"qual a latência somente da integração Y?"*), o PromQL utiliza **Seletores de Rótulos (Label Matchers)** dentro das chaves `{}`.
+
+### 6.1. Os 4 Operadores de Filtro de Recursos
+
+| Operador | Significado | Exemplo Prático |
+| :---: | :--- | :--- |
+| `=` | **Igualdade estrita** | `{name="billing-service"}` (avalia estritamente este componente) |
+| `!=` | **Diferença (exclusão)** | `{status!="200"}` (qualquer requisição que não foi 200 OK) |
+| `=~` | **Regex match** | `{queue=~"user-.*"}` (qualquer fila cujo nome inicia com `user-`) |
+| `!~` | **Regex não-match** | `{uri!~"/actuator/.*"}` (exclui chamadas internas de healthcheck) |
+
+---
+
+### 6.2. Comparativo: Consulta Genérica vs. Consulta para Recurso Específico
+
+Abaixo está o mapeamento exato de como filtrar cada recurso do ecossistema:
+
+#### 1. Endpoint REST Específico (Spring MVC)
+- **Genérica (todos os endpoints agregados)**:
+  ```promql
+  sum(rate(http_server_requests_seconds_count[1m])) by (uri)
+  ```
+- **Específica (Apenas o endpoint `GET /api/v1/orchestrator/users/{userId}`)**:
+  ```promql
+  rate(http_server_requests_seconds_count{uri="/api/v1/orchestrator/users/{userId}", method="GET"}[1m])
+  ```
+- **Específica (Apenas falhas 5xx deste endpoint)**:
+  ```promql
+  rate(http_server_requests_seconds_count{uri="/api/v1/orchestrator/users/{userId}", status=~"5.."}[1m])
+  ```
+
+#### 2. Subprocesso / Integração Específica (Fatia da Pizza)
+- **Genérica (todas as fatias de todos os fluxos)**:
+  ```promql
+  sum(rate(flow_slice_duration_seconds_sum[1m])) by (flow, step)
+  ```
+- **Específica (Latência média APENAS da API Billing dentro do fluxo de usuário)**:
+  ```promql
+  rate(flow_slice_duration_seconds_sum{flow="GET /api/v1/orchestrator/users/{userId}", step="API Billing (GET /billing/accounts/{userId})"}[1m])
+  /
+  rate(flow_slice_duration_seconds_count{flow="GET /api/v1/orchestrator/users/{userId}", step="API Billing (GET /billing/accounts/{userId})"}[1m])
+  ```
+- **Específica (Apenas o tempo de processamento interno da JVM do fluxo REST)**:
+  ```promql
+  flow_slice_duration_seconds_sum{flow="GET /api/v1/orchestrator/users/{userId}", step="Processamento Interno & Regras"}
+  ```
+
+#### 3. Disjuntor (Circuit Breaker) Específico
+- **Genérica (todos os disjuntores da aplicação)**:
+  ```promql
+  resilience4j_circuitbreaker_state{state="closed"}
+  ```
+- **Específica (Apenas o estado do disjuntor `billing-service`)**:
+  ```promql
+  resilience4j_circuitbreaker_state{name="billing-service", state="closed"}
+  ```
+  *(Retorna `1` para saudável/fechado e `0` para aberto)*
+- **Específica (Taxa de falha % apenas do `customer-service`)**:
+  ```promql
+  rate(resilience4j_circuitbreaker_calls_seconds_count{name="customer-service", kind="failed"}[5m])
+  /
+  (
+    rate(resilience4j_circuitbreaker_calls_seconds_count{name="customer-service", kind="successful"}[5m])
+    +
+    rate(resilience4j_circuitbreaker_calls_seconds_count{name="customer-service", kind="failed"}[5m])
+  ) * 100
+  ```
+
+#### 4. Fila SQS Específica
+- **Genérica (todas as filas SQS)**:
+  ```promql
+  sqs_queue_depth
+  ```
+- **Específica (Apenas a fila `user-audit-queue`)**:
+  ```promql
+  sqs_queue_depth{queue="user-audit-queue"}
+  ```
+- **Específica (Todas as filas que começam com `user-` via Regex)**:
+  ```promql
+  sqs_queue_depth{queue=~"user-.*"}
+  ```
+
+#### 5. Tópico e Consumer Group Kafka Específicos
+- **Genérica (soma de lag por tópico)**:
+  ```promql
+  sum(kafka_consumer_lag_records) by (topic)
+  ```
+- **Específica (Lag do tópico `user-registration-topic` consumido pelo grupo `user-orchestrator-group`)**:
+  ```promql
+  kafka_consumer_lag_records{topic="user-registration-topic", group="user-orchestrator-group"}
+  ```
+
+#### 6. Pool de Banco de Dados Específico (HikariCP)
+- **Genérica (conexões de qualquer pool)**:
+  ```promql
+  hikaricp_connections_pending
+  ```
+- **Específica (Apenas o pool `observability-hikari-pool`)**:
+  ```promql
+  hikaricp_connections_pending{pool="observability-hikari-pool"}
+  ```
+- **Específica (% de saturação do pool principal)**:
+  ```promql
+  (hikaricp_connections_active{pool="observability-hikari-pool"} 
+   / 
+   hikaricp_connections_max{pool="observability-hikari-pool"}) * 100
+  ```
+
+#### 7. Tag de Negócio Específica (SpEL / Planos)
+- **Genérica (distribuição de planos de faturamento)**:
+  ```promql
+  sum(increase(user_profile_provision_seconds_count[1h])) by (billing_type)
+  ```
+- **Específica (Volume apenas de clientes com plano `PREPAID`)**:
+  ```promql
+  increase(user_profile_provision_seconds_count{billing_type="PREPAID"}[1h])
+  ```
+
+#### 8. Alarmística e Violação de SLA para um Alvo Específico
+- **Genérica (taxa de todos os alertas disparados)**:
+  ```promql
+  sum(rate(alerts_triggered_total[1m])) by (type)
+  ```
+- **Específica (Apenas violações de SLA na integração com o Customer)**:
+  ```promql
+  alerts_triggered_total{type="INTEGRATION_LATENCY_SLA_BREACH", target="API Customer (GET /customers/{userId})"}
+  ```
+- **Específica (Apenas alertas de severidade CRITICAL no disjuntor do Billing)**:
+  ```promql
+  alerts_triggered_total{target="billing-service", severity="CRITICAL"}
+  ```
+
+---
+
+### 6.3. Como Inspecionar e Descobrir Labels Disponíveis
+
+1. **Na interface Web do Prometheus (`http://localhost:9090`)**:
+   - No campo **Expression**, digite o nome da métrica e abra uma chave `{`.
+   - O Prometheus exibe um menu de autocompletion com **todos os nomes de rótulos disponíveis** e **todos os valores coletados**.
+2. **Via Endpoint `/actuator/prometheus`**:
+   ```bash
+   curl -s http://localhost:8080/actuator/prometheus | grep "resilience4j_circuitbreaker_state"
+   ```
+   A saída mostra a combinação exata de tags:
+   ```text
+   resilience4j_circuitbreaker_state{application="user-orchestrator",name="billing-service",state="closed"} 1.0
+   ```
+
+---
+
+### 6.4. Parametrização no Grafana com Variáveis de Dashboard (Dropdowns)
+
+Em vez de clonar painéis para cada recurso, o padrão recomendado no Grafana é criar **Variáveis de Dashboard**:
+
+1. No Grafana, acesse **Dashboard Settings** (ícone de engrenagem) $\rightarrow$ **Variables** $\rightarrow$ **Add variable**.
+2. Parâmetros da variável:
+   - **Name**: `queue_name`
+   - **Type**: `Query`
+   - **Data source**: `Prometheus`
+   - **Query**: `label_values(sqs_queue_depth, queue)`
+3. No painel do Grafana, escreva a query usando a variável:
+   ```promql
+   sqs_queue_depth{queue="$queue_name"}
+   ```
+4. **Resultado**: O Grafana cria um menu dropdown no topo da tela. Quando o operador seleciona `user-audit-queue`, o painel filtra automaticamente apenas essa fila, sem necessidade de duplicar painéis ou alterar consultas PromQL.

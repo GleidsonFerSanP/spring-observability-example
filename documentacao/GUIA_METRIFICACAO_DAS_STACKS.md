@@ -600,3 +600,5 @@ if (elapsedMs > thresholdMs) {
 5. **Opere em Duas Camadas de Alerta**:
    - Camada In-App (sub-segundo para disjuntores e estouros de SLA pontuais).
    - Camada Plataforma Prometheus (agregação temporal sobre sliding windows de percentis p95/p99).
+6. **Consultas para Recursos Específicos e Variáveis Grafana**:
+   - Para consultar um recurso específico (um único endpoint, uma fila específica, um disjuntor isolado) ou criar dropdowns dinâmicos no Grafana via `label_values()`, consulte a [Seção 6 do Catálogo Canônico de Métricas e Queries PromQL](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/CATALOGO_DE_METRICAS_E_QUERIES_DASHBOARD.md#6-guia-avançado-consultas-para-recursos-específicos-label-matchers--variáveis-grafana).

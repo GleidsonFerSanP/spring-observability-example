@@ -88,6 +88,7 @@ flowchart TD
 - [**Observabilidade e Métricas**](OBSERVABILIDADE_E_METRICAS.md): Explicação do Aspecto SpEL, tags customizadas, rastreamento de fatias por entrypoint, queries PromQL e estrutura do painel Grafana.
 - [**Registro de Decisões Arquiteturais (ADRs)**](DECISOES_ARQUITETURAIS_ADR.md): Racional detalhado de todas as decisões tomadas, problemas, soluções e trade-offs.
 - [**Cenários de Teste e Caos**](CENARIOS_DE_TESTE_E_CAOS.md): Detalhamento dos cenários de teste de carga contínua, simulação de falhas e disjuntores.
+- [**Guia de Abstração de Vendors e Provedores**](GUIA_DE_ABSTRACAO_DE_VENDORS_E_PROVEDORES.md): Arquitetura agnóstica de fornecedor (Prometheus, Jaeger, Datadog via OTLP, Dynatrace, New Relic, OTel Collector).
 - [**Especificação Técnica para Starter Spring Boot**](ESPECIFICACAO_TECNICA_STARTER_OBSERVABILIDADE.md): Especificação completa e guia para extração da observabilidade em um starter reutilizável por um Agente de IA.
 
 ---
