@@ -17,6 +17,8 @@ Este documento registra formalmente as principais decisões arquiteturais tomada
 - [ADR 09: Arquitetura Vendor-Neutral e Estratégia Multi-Provedor (Prometheus, Jaeger, Datadog, OTel)](#adr-09-arquitetura-vendor-neutral-e-estratégia-multi-provedor)
 - [ADR 10: Rastreamento Estruturado de Pernas de Execução (Legs), Auditoria de Payloads e Mascaramento SpEL via Grafana Loki](#adr-10-rastreamento-estruturado-de-pernas-de-execução-legs-auditoria-de-payloads-e-mascaramento-spel-via-grafana-loki)
 - [ADR 11: Padronização Corporativa de Logback Multi-Perfil, Appenders Assíncronos e Propagação de Correlation ID](#adr-11-padronização-corporativa-de-logback-multi-perfil-appenders-assíncronos-e-propagação-de-correlation-id)
+- [ADR 12: Flow Dimensions e SPI Desacoplada de Feature Flags para Migração Operacional de Rotas](#adr-12-flow-dimensions-e-spi-desacoplada-de-feature-flags-para-migração-operacional-de-rotas)
+- [ADR 13: Arquitetura Hexagonal de Observabilidade com Engine SPI e Datadog como Engine Oficial Corporativo](#adr-13-arquitetura-hexagonal-de-observabilidade-com-engine-spi-e-datadog-como-engine-oficial-corporativo)
 
 ---
 
@@ -302,7 +304,7 @@ Em ambientes de microsserviços modernos, os requisitos operacionais de logs div
 
 ---
 
-## ADR 11: Flow Dimensions e SPI Desacoplada de Feature Flags para Migração Operacional de Rotas
+## ADR 12: Flow Dimensions e SPI Desacoplada de Feature Flags para Migração Operacional de Rotas
 
 ### Status
 Aprovado / Implementado
@@ -333,6 +335,63 @@ Contudo, surgiram dois problemas fundamentais:
   - Compatibilidade retroativa integral: fluxos sem flags continuam gerando métricas sem tags adicionais.
 - **Negativas / Cuidados**:
   - Exige disciplina para manter variantes com baixa cardinalidade (ex: `legacy`, `new`, `v2`, `canary`), evitando utilizar valores dinâmicos ou identificadores de usuários como variantes.
+
+---
+
+## ADR 13: Arquitetura Hexagonal de Observabilidade com Engine SPI e Datadog como Engine Oficial Corporativo
+
+### Status
+Aprovado / Implementado
+
+### Contexto
+A organização definiu o **Datadog** como sua plataforma oficial corporativa para APM, Rastreamento Distribuído, Métricas e Dashboarding em ambientes de homologação e produção.
+
+Uma análise profunda das capacidades nativas do Datadog revelou que uma parcela substancial dos requisitos originalmente imaginados para um "Flow Registry" customizado (descoberta de topologias, correlação de dependências e monitoramento de mensageria assíncrona) já é atendida pela plataforma:
+1. **Service Map & Catalog Dinâmico**: Descoberta automática de nós de serviço, datastores, filas e dependências inferidas a partir do tráfego real de APM.
+2. **Request Flow Maps com Filtros por Tags**: Capacidade do Datadog Trace Explorer de projetar grafos de execução filtrados por atributos de span arbitrários, permitindo isolar fluxos com `@flow.name` e comparar visualmente rotas migratórias via `@flow.variant` (ex: `legacy` vs `new`).
+3. **Data Streams Monitoring (DSM)**: Mapeamento nativo de topologias de mensageria (Kafka e SQS), cálculo de latência de ponta a ponta (pathway latency) e detecção de lag de consumidores em tempo real, dispensando a necessidade de consultas manuais de catálogo e polling in-JVM via `AdminClient`.
+4. **Dependency Map & Latency Attribution**: A métrica nativa "Avg % Exec Time" do Datadog desconta períodos de espera por spans filhos, mitigando o risco de somas duplicadas de latência.
+
+Contudo, surgiu um risco arquitetural primordial: **Vendor Lock-in**.
+Se os microsserviços ou o starter corporativo acoplarem-se a classes proprietárias do Datadog (`com.datadoghq.*`):
+- O código de negócio e orquestração fica refém de uma ferramenta específica.
+- O desenvolvimento local e as esteiras de CI/CD tornam-se excessivamente onerosas ou inviáveis, pois desenvolvedores necessitariam de credenciais ou instâncias simuladas do Datadog para rodar testes unitários e de integração.
+- A empresa perde o poder de barganha e a liberdade de migrar para outros ecossistemas (ex: OpenTelemetry Collector, Grafana Cloud, Dynatrace).
+
+### Decisão
+1. **Arquitetura Hexagonal com Engine SPI (`ObservabilityEngine`)**:
+   - Todo o código de aplicação (`@TrackFlow`, `@TrackStep`, `@ObservationTag`, `FlowContext`, `FlowDimensions`) interage exclusivamente com a fronteira agnóstica do Starter Core.
+   - Criação da interface SPI `com.empresa.platform.observability.core.engine.ObservabilityEngine` definindo as operações de ciclo de vida:
+     - `getCapabilities()`: expõe as capacidades suportadas pelo backend ativo (`EngineCapabilities`).
+     - `startFlow(...)` e `completeFlow(...)`: gerencia o escopo do fluxo, tags semânticas e finalização.
+     - `startStep(...)` e `completeStep(...)`: gerencia spans de subprocessos e atribuição temporal.
+     - `recordFlowInterruption(...)` e `recordStepInterruption(...)`: registra falhas e degradações.
+     - `tagAttribute(key, value)`: enriquece o contexto ativo sem acoplamento a modelos proprietários.
+2. **Datadog como Engine Oficial Corporativa (`DatadogObservabilityEngine`)**:
+   - Desenvolvida como o adaptador padrão para ambientes corporativos e de produção.
+   - **Zero Dependências Fechadas**: Opera em conjunto com o `dd-java-agent` através da ponte aberta OpenTelemetry (`io.opentelemetry:opentelemetry-api` via `DD_TRACE_OTEL_ENABLED=true`) e Micrometer Observation.
+   - Aplica a convenção semântica de atributos Datadog:
+     - Spans: `flow.name`, `flow.variant`, `flow.step`, `flow.type`, `flow.status`, `feature.name`, `feature.variant`.
+     - Erros: `error.type`, `error.message`.
+   - **Economia de Recursos com DSM**: Reporta `requiresInJvmLagPolling() == false`. Quando executando sob o Datadog, o starter suprime o polling periódico de lag via `KafkaLagMetricsBinder` e `SqsMetricsBinder`, delegando essa telemetria ao Data Streams Monitoring nativo do Datadog Agent.
+3. **Micrometer/OTel como Engine de Referência e Portabilidade (`MicrometerObservabilityEngine`)**:
+   - Adaptador padrão ativado em ambientes locais (`dev`), pipelines de CI/CD e testes automatizados.
+   - Opera via `MeterRegistry` (Prometheus) e `ObservationRegistry` (Jaeger/OTLP), garantindo que todo o ecossistema local do Docker Compose (Prometheus, Grafana, Jaeger, Loki) permaneça 100% funcional sem qualquer licença externa.
+4. **Configuração Declarativa e Seleção por Perfil**:
+   - Controlada pela propriedade `observability.engine=datadog|micrometer|opentelemetry`.
+   - Padrão em produção/nuvem: `datadog`.
+   - Padrão em testes e local: `micrometer`.
+
+### Consequências
+- **Positivas**:
+  - **Zero Vendor Lock-in**: Código de domínio e orquestração 100% puro e agnóstico de fornecedor.
+  - **Aproveitamento Máximo do Datadog**: Request Flow Maps, DSM e Service Maps operam com dados de alta fidelidade sem exigir código Datadog na aplicação.
+  - **Custo e Autonomia Local**: Desenvolvedores e testes executam localmente com ferramentas open-source leves sem pagar licenças nem depender de internet.
+  - **Eficiência de Rede e CPU**: Eliminação de polling redundante de lag no Kafka e SQS em produção corporativa.
+- **Negativas / Cuidados**:
+  - Requer que o ambiente produtivo garanta a presença do `dd-java-agent` na inicialização da JVM com a variável `DD_TRACE_OTEL_ENABLED=true`.
+  - Exige manutenção contínua da conformidade semântica de tags entre os adaptadores.
+
 
 
 
