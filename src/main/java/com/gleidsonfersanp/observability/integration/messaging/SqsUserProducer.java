@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import io.micrometer.observation.annotation.Observed;
 import com.gleidsonfersanp.observability.observability.ObservationTag;
+import com.gleidsonfersanp.observability.observability.flow.TrackStep;
 
 @Component
 public class SqsUserProducer {
@@ -20,6 +21,7 @@ public class SqsUserProducer {
     @Observed(name = "messaging.produce", contextualName = "sqs-user-audit-produce")
     @ObservationTag(key = "messaging.system", expression = "'sqs'")
     @ObservationTag(key = "queue", expression = "'user-audit-queue'")
+    @TrackStep("Publicação SQS (user-audit-queue)")
     public void publishUserAudit(String action, String userId, String details) {
         String payload = String.format("[%s] User: %s - %s", action, userId, details);
         log.info("Publishing user audit event to SQS: {}", payload);
@@ -29,6 +31,7 @@ public class SqsUserProducer {
     @Observed(name = "messaging.produce", contextualName = "sqs-welcome-produce")
     @ObservationTag(key = "messaging.system", expression = "'sqs'")
     @ObservationTag(key = "queue", expression = "'welcome-email-queue'")
+    @TrackStep("Publicação SQS (welcome-email-queue)")
     public void publishWelcomeEmail(String userId) {
         log.info("Publishing welcome email event to SQS: {}", userId);
         sqsTemplate.send(to -> to.queue("welcome-email-queue").payload(userId));

@@ -8,10 +8,10 @@ Este repositório é um laboratório prático de **Arquitetura Orientada a Event
 
 Demonstrar como instrumentar uma aplicação corporativa de ponta a ponta sem poluir o código de negócio com chamadas manuais de métricas e traces. A solução resolve desafios reais de arquitetura:
 
-1. **Visibilidade granular de latência**: Medir o tempo total da operação de entrada e isolar o consumo de tempo de cada fatia externa (chamadas HTTP/Feign).
+1. **Decomposição Matemática de Latência por Entrypoint**: Cada ponto de entrada (ex: `GET /users/{userId}` ou Consumidor Kafka) possui seu próprio gráfico de pizza no Grafana, onde a pizza inteira representa 100% do tempo do fluxo, fatiada com exatidão entre cada integração externa e o tempo residual de processamento interno via `FlowContext` e anotações `@TrackFlow` / `@TrackStep`.
 2. **Circuit Breaking granular por integração**: Isolar falhas em serviços terceiros específicos (`customer-service`, `billing-service`, `notification-service`) em vez de mascarar problemas em um disjuntor genérico.
 3. **Extração não-intrusiva de contexto com SpEL**: Anotar interfaces Feign e métodos com `@ObservationTag`, usando expressões SpEL (`#result?.billingType()?.name()`, `#userId`) para enriquecer métricas e spans sem poluir services ou controllers.
-4. **Monitoramento dinâmico de filas e tópicos**: Acompanhamento automático de profundidade de filas SQS (descoberta automática via AWS SDK) e lag de grupos de consumidores Kafka.
+4. **Monitoramento autoritativo de filas e tópicos**: Acompanhamento automático de profundidade de filas SQS (descoberta dinâmica via AWS SDK com `SqsMetricsBinder`) e cálculo em tempo real do lag de consumidores Kafka via `AdminClient` (`KafkaLagMetricsBinder`).
 5. **Engenharia de Caos**: Injeção de latência controlada, timeouts e erros 500 via WireMock para simular comportamentos sob estresse real.
 
 ---
@@ -23,24 +23,26 @@ flowchart TD
     Client(["Cliente / Load Test (massive_load.py)"])
     
     subgraph SpringApp ["Spring Boot Application (user-orchestrator)"]
-        Controller["UserOrchestratorController"]
-        Service["UserOrchestratorService"]
-        AOP["SpelObservationAspect (@ObservationTag)"]
+        Controller["UserOrchestratorController (@TrackFlow)"]
+        Service["UserOrchestratorService (Lógica Pura)"]
+        FlowAOP["FlowTrackingAspect (ThreadLocal Stack)"]
+        SpelAOP["SpelObservationAspect (@ObservationTag)"]
         
-        subgraph FeignClients ["Bordas HTTP (OpenFeign + CircuitBreaker)"]
+        subgraph FeignClients ["Bordas HTTP (OpenFeign + CircuitBreaker + @TrackStep)"]
             CustClient["CustomerClient"]
             BillClient["BillingClient"]
             NotifClient["NotificationClient"]
         end
         
         subgraph Messaging ["Mensageria"]
-            KProd["KafkaUserProducer"]
-            KCons["KafkaUserConsumer / KafkaBillingConsumer"]
-            SProd["SqsUserProducer"]
+            KProd["KafkaUserProducer (@TrackStep)"]
+            KCons["KafkaUserConsumer (@TrackFlow)"]
+            SProd["SqsUserProducer (@TrackStep)"]
             SCons["SqsUserConsumer / SqsWelcomeConsumer"]
         end
         
-        Binder["SqsMetricsBinder (Dynamic SQS Gauge Discovery)"]
+        SqsBinder["SqsMetricsBinder (Dynamic SQS Gauge Discovery)"]
+        KafkaBinder["KafkaLagMetricsBinder (Authoritative Kafka AdminClient)"]
     end
     
     subgraph External ["Infraestrutura Docker"]
@@ -80,7 +82,8 @@ flowchart TD
 ## 📂 Estrutura da Documentação
 
 - [**Arquitetura e Fluxos**](README.md): Este documento, contendo visão geral, arquitetura e componentes.
-- [**Observabilidade e Métricas**](OBSERVABILIDADE_E_METRICAS.md): Explicação do Aspecto SpEL, tags customizadas, queries PromQL e estrutura do painel Grafana.
+- [**Registro de Decisões Arquiteturais (ADRs)**](DECISOES_ARQUITETURAIS_ADR.md): Racional detalhado de todas as decisões tomadas, problemas, soluções e trade-offs.
+- [**Observabilidade e Métricas**](OBSERVABILIDADE_E_METRICAS.md): Explicação do Aspecto SpEL, tags customizadas, rastreamento de fatias por entrypoint, queries PromQL e estrutura do painel Grafana.
 - [**Cenários de Teste e Caos**](CENARIOS_DE_TESTE_E_CAOS.md): Detalhamento dos cenários de teste de carga contínua, simulação de falhas e disjuntores.
 
 ---

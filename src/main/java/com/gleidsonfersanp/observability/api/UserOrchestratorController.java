@@ -4,6 +4,7 @@ import com.gleidsonfersanp.observability.application.UserOrchestratorService;
 import com.gleidsonfersanp.observability.domain.AuditLogRepository;
 import com.gleidsonfersanp.observability.domain.UserProfile;
 import com.gleidsonfersanp.observability.domain.UserRegistrationRequest;
+import com.gleidsonfersanp.observability.observability.flow.TrackFlow;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,7 +24,7 @@ public class UserOrchestratorController {
     }
 
     // Existing sync flow
-    @com.gleidsonfersanp.observability.observability.flow.TrackFlow("GET /api/v1/orchestrator/users/{userId}")
+    @TrackFlow("GET /api/v1/orchestrator/users/{userId}")
     @GetMapping("/users/{userId}")
     public ResponseEntity<UserProfile> getUserProfile(@PathVariable String userId) {
         UserProfile profile = orchestratorService.fetchAndProvisionUserProfile(userId);
@@ -31,7 +32,7 @@ public class UserOrchestratorController {
     }
 
     // New Async Flow Entrypoint
-    @com.gleidsonfersanp.observability.observability.flow.TrackFlow("POST /api/v1/orchestrator/users")
+    @TrackFlow("POST /api/v1/orchestrator/users")
     @PostMapping("/users")
     public ResponseEntity<Map<String, String>> registerUser(@RequestBody UserRegistrationRequest request) {
         orchestratorService.initiateUserRegistration(request);

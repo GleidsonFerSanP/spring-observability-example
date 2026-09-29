@@ -8,6 +8,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import io.micrometer.observation.annotation.Observed;
 import com.gleidsonfersanp.observability.observability.ObservationTag;
+import com.gleidsonfersanp.observability.observability.flow.TrackStep;
 
 @Component
 public class KafkaUserProducer {
@@ -24,6 +25,7 @@ public class KafkaUserProducer {
     @Observed(name = "messaging.produce", contextualName = "kafka-registration-produce")
     @ObservationTag(key = "messaging.system", expression = "'kafka'")
     @ObservationTag(key = "topic", expression = "'user-registration-topic'")
+    @TrackStep("Publicação Kafka (user-registration-topic)")
     public void publishUserRegistration(UserRegistrationRequest request) {
         try {
             String payload = objectMapper.writeValueAsString(request);
@@ -37,6 +39,7 @@ public class KafkaUserProducer {
     @Observed(name = "messaging.produce", contextualName = "kafka-billing-produce")
     @ObservationTag(key = "messaging.system", expression = "'kafka'")
     @ObservationTag(key = "topic", expression = "'billing-events-topic'")
+    @TrackStep("Publicação Kafka (billing-events-topic)")
     public void publishBillingEvent(String userId, String plan) {
         log.info("Publishing billing event to Kafka: {} - {}", userId, plan);
         kafkaTemplate.send("billing-events-topic", userId + "|" + plan);

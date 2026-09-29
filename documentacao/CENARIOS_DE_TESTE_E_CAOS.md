@@ -57,3 +57,24 @@ A aplicação exporta spans via padrão OpenTelemetry (porta `4318` do Jaeger):
      - Span Kafka: `messaging.produce` (`kafka-billing-produce`)
 
 Cada span carrega as tags de negócio injetadas pelo nosso aspecto (`userId`, `billing_type`, etc.), permitindo filtrar no Jaeger todos os rastros de um tipo específico de cliente ou erro.
+
+---
+
+## 💾 4. Engenharia de Caos em Banco de Dados (`/api/db-chaos`)
+
+O controlador [`DatabaseChaosController`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/src/main/java/com/gleidsonfersanp/observability/database/DatabaseChaosController.java) e o serviço [`DatabaseChaosService`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/src/main/java/com/gleidsonfersanp/observability/database/DatabaseChaosService.java) fornecem endpoints dedicados para simular anomalias de persistência:
+
+### 1. Transações Normais
+- **POST** `/api/db-chaos/normal?amount=250.0`: Cria uma transação persistida em banco.
+- **GET** `/api/db-chaos/normal`: Recupera todas as transações cadastradas.
+
+### 2. Slow Query (Latência Artificial no Banco)
+- **GET** `/api/db-chaos/slow-query?delaySeconds=5`:
+  Executa uma query simulada mantendo a conexão ocupada por 5 segundos. Permite visualizar o aumento no tempo de espera do pool e a duração do span no Jaeger.
+
+### 3. Exaustão do Pool de Conexões (HikariCP Starvation)
+- **POST** `/api/db-chaos/exhaust-pool?concurrentRequests=10&holdTimeSeconds=10`:
+  Como o pool HikariCP está configurado com `maximum-pool-size: 5` e `connection-timeout: 3000ms`, disparar 10 requisições simultâneas retendo conexões por 10 segundos força o esgotamento do pool.
+  - **Efeito Observado**: Lançamento de `SQLTransientConnectionException: HikariPool-1 - Connection is not available, request timed out after 3000ms`.
+  - **Métricas no Prometheus**: As métricas do HikariCP (`hikaricp_connections_active`, `hikaricp_connections_pending`, `hikaricp_connections_timeout_total`) refletem o gargalo instantaneamente.
+

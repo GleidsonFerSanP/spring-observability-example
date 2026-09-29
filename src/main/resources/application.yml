@@ -46,6 +46,12 @@ spring:
         secret-key: test
       sqs:
         endpoint: http://localhost:4566
+sqs:
+  metrics:
+    poll-delay: 10000
+    queues:
+      - customer-events-queue
+      - billing-events-queue
   kafka:
     bootstrap-servers: localhost:9092
     producer:
@@ -79,3 +85,25 @@ resilience4j:
         baseConfig: default
       notification-service:
         baseConfig: default
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/observabilitydb
+    username: observability
+    password: password
+    driverClassName: org.postgresql.Driver
+    hikari:
+      pool-name: observability-hikari-pool
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 3000
+      max-lifetime: 600000
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        generate_statistics: true
+        session_factory:
+          session_scoped_interceptor: org.hibernate.resource.jdbc.spi.StatementInspector

@@ -9,31 +9,16 @@
     "panels": [
       {
         "id": 1,
-        "title": "🥧 Fatias do Fluxo Síncrono: GET /users/{userId}",
-        "description": "Decomposição do tempo total de processamento do endpoint REST síncrono. A pizza inteira representa 100% da duração da requisição, fatiada por subprocessos chamados.",
+        "title": "🥧 Entrypoint REST Síncrono: GET /users/{userId}",
+        "description": "Decomposição do tempo total de resposta da API REST. A pizza inteira representa 100% do tempo gasto por quem invocou o endpoint, fatiada pelas integrações e regras internas.",
         "type": "piechart",
         "gridPos": {"x": 0, "y": 0, "w": 12, "h": 9},
         "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
         "targets": [
           {
-            "expr": "sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"customer-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"customer-service\"}[1m]))",
-            "legendFormat": "API Customer (GET /customers/{userId})",
+            "expr": "sum(rate(flow_slice_duration_seconds_sum{flow=\"GET /api/v1/orchestrator/users/{userId}\"}[1m])) by (step)",
+            "legendFormat": "{{step}}",
             "refId": "A"
-          },
-          {
-            "expr": "sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"billing-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"billing-service\"}[1m]))",
-            "legendFormat": "API Billing (GET /billing/accounts/{userId})",
-            "refId": "B"
-          },
-          {
-            "expr": "sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"notification-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"notification-service\"}[1m]))",
-            "legendFormat": "API Notificação (POST /notifications)",
-            "refId": "C"
-          },
-          {
-            "expr": "clamp_min((sum(rate(user_profile_provision_seconds_sum[1m])) / sum(rate(user_profile_provision_seconds_count[1m]))) - ((sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"customer-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"customer-service\"}[1m]))) + (sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"billing-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"billing-service\"}[1m]))) + (sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"notification-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"notification-service\"}[1m])))), 0.01)",
-            "legendFormat": "Processamento Interno & Regras de Negócio",
-            "refId": "D"
           }
         ],
         "fieldConfig": {
@@ -53,36 +38,16 @@
       },
       {
         "id": 2,
-        "title": "🥧 Fatias do Fluxo Orientado a Eventos: Consumidor Kafka",
-        "description": "Decomposição do tempo total de consumo do evento user-registration-topic. A pizza inteira representa 100% da duração do processamento do consumidor.",
+        "title": "🥧 Entrypoint Assíncrono: Consumidor Kafka (user-registration-topic)",
+        "description": "Decomposição do tempo total de execução do consumidor de eventos. A pizza inteira representa 100% do ciclo de consumo, fatiada pelas integrações de APIs e filas de mensageria.",
         "type": "piechart",
         "gridPos": {"x": 12, "y": 0, "w": 12, "h": 9},
         "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
         "targets": [
           {
-            "expr": "sum(rate(user_profile_provision_seconds_sum[1m])) / sum(rate(user_profile_provision_seconds_count[1m]))",
-            "legendFormat": "Provisionamento de Perfil (APIs Feign)",
+            "expr": "sum(rate(flow_slice_duration_seconds_sum{flow=\"Kafka Consumer: user-registration-topic\"}[1m])) by (step)",
+            "legendFormat": "{{step}}",
             "refId": "A"
-          },
-          {
-            "expr": "sum(rate(messaging_produce_seconds_sum{method=\"publishUserAudit\"}[1m])) / sum(rate(messaging_produce_seconds_count{method=\"publishUserAudit\"}[1m]))",
-            "legendFormat": "Publicação SQS Auditoria (user-audit-queue)",
-            "refId": "B"
-          },
-          {
-            "expr": "sum(rate(messaging_produce_seconds_sum{method=\"publishBillingEvent\"}[1m])) / sum(rate(messaging_produce_seconds_count{method=\"publishBillingEvent\"}[1m]))",
-            "legendFormat": "Publicação Kafka Cobrança (billing-events-topic)",
-            "refId": "C"
-          },
-          {
-            "expr": "sum(rate(messaging_produce_seconds_sum{method=\"publishWelcomeEmail\"}[1m])) / sum(rate(messaging_produce_seconds_count{method=\"publishWelcomeEmail\"}[1m]))",
-            "legendFormat": "Publicação SQS Boas-Vindas (welcome-email-queue)",
-            "refId": "D"
-          },
-          {
-            "expr": "clamp_min((sum(rate(spring_kafka_listener_seconds_sum{name=~\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\"}[1m])) / sum(rate(spring_kafka_listener_seconds_count{name=~\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\"}[1m]))) - (sum(rate(user_profile_provision_seconds_sum[1m])) / sum(rate(user_profile_provision_seconds_count[1m]))), 0.05)",
-            "legendFormat": "Deserialização & Regras do Consumidor",
-            "refId": "E"
           }
         ],
         "fieldConfig": {
@@ -195,12 +160,12 @@
         "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
         "targets": [
           {
-            "expr": "sum(rate(user_profile_provision_seconds_sum[1m])) / sum(rate(user_profile_provision_seconds_count[1m]))",
-            "legendFormat": "E2E Média (s)",
+            "expr": "sum(rate(flow_total_duration_seconds_sum{flow=\"GET /api/v1/orchestrator/users/{userId}\"}[1m])) / sum(rate(flow_total_duration_seconds_count{flow=\"GET /api/v1/orchestrator/users/{userId}\"}[1m]))",
+            "legendFormat": "E2E Média Real (s)",
             "refId": "A"
           },
           {
-            "expr": "max(user_profile_provision_seconds_max)",
+            "expr": "flow_total_duration_seconds_max{flow=\"GET /api/v1/orchestrator/users/{userId}\"}",
             "legendFormat": "E2E Pico Máx (s)",
             "refId": "B"
           }

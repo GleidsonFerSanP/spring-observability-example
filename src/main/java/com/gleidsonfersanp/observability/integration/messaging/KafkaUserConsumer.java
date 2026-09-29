@@ -10,6 +10,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import io.micrometer.observation.annotation.Observed;
 import com.gleidsonfersanp.observability.observability.ObservationTag;
+import com.gleidsonfersanp.observability.observability.flow.TrackFlow;
 
 @Component
 public class KafkaUserConsumer {
@@ -27,8 +28,9 @@ public class KafkaUserConsumer {
         this.kafkaProducer = kafkaProducer;
     }
 
-        @Observed(name = "messaging.consume", contextualName = "kafka-user-registration-consumer")
+    @Observed(name = "messaging.consume", contextualName = "kafka-user-registration-consumer")
     @ObservationTag(key = "messaging.system", expression = "'kafka'")
+    @TrackFlow("Kafka Consumer: user-registration-topic")
     @KafkaListener(topics = "user-registration-topic", groupId = "user-orchestrator-group")
     public void consume(String message) {
         log.info("Received Kafka message for registration: {}", message);

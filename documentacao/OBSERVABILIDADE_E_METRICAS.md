@@ -102,42 +102,164 @@ O painel está organizado em 4 seções estratégicas:
   sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group="none", name=~"customer-service|billing-service|notification-service"}[1m])) by (name)
   ```
 
-### Painel 1 e 2: 🥧 Decomposição do Tempo por Fluxo de Entrada (Entrypoints)
-Em vez de misturar todas as operações da arquitetura em um gráfico genérico, **cada fluxo de entrada (entrypoint) possui sua própria pizza**, onde 100% da pizza representa o tempo total de resposta daquele fluxo e as fatias representam estritamente o tempo consumido por seus subprocessos:
+## 🥧 4. Decomposição de Latência por Fluxo de Entrada (`@TrackFlow` e `@TrackStep`)
 
-#### 1. Fluxo Síncrono REST: `GET /api/v1/orchestrator/users/{userId}`
-- **Duração Total**: Medida pela observação `user_profile_provision_seconds`.
-- **Fatias**:
-  - `API Customer (GET /customers/{userId})`:
-    ```promql
-    sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group="none", name="customer-service"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group="none", name="customer-service"}[1m]))
-    ```
-  - `API Billing (GET /billing/accounts/{userId})`:
-    ```promql
-    sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group="none", name="billing-service"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group="none", name="billing-service"}[1m]))
-    ```
-  - `API Notificação (POST /notifications)`:
-    ```promql
-    sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group="none", name="notification-service"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group="none", name="notification-service"}[1m]))
-    ```
-  - `Processamento Interno & Regras de Negócio`:
-    Tempo residual do fluxo (Total E2E - Soma das chamadas externas).
+### O Problema do Gráfico de Pizza Global
+Em arquiteturas de microsserviços, tentar criar um gráfico de pizza somando métricas globais de clientes HTTP (como `resilience4j_circuitbreaker_calls_seconds`) e mensageria gera distorções graves:
+1. **Contaminação de Contexto**: Se tanto a API REST `GET /users/{userId}` quanto o consumidor assíncrono Kafka invocam o `customer-service`, uma métrica global de Feign somará o tempo de ambos os fluxos, inviabilizando saber quanto tempo o fluxo REST consumiu.
+2. **Falta de Fechamento Matemático (100%)**: Métricas de clientes externos cobrem apenas o tempo das requisições de rede. O tempo de processamento interno da aplicação (serialização, regras de negócio, transformações, banco) ficava invisível.
+3. **Fluxos Heterogêneos**: Um endpoint REST possui integrações diferentes de um consumidor de fila. Cada **fluxo de entrada (entrypoint)** precisa de sua própria pizza isolada.
 
-#### 2. Fluxo Orientado a Eventos: Consumidor Kafka (`user-registration-topic`)
-- **Duração Total**: Medida pelo listener Kafka `spring_kafka_listener_seconds`.
-- **Fatias**:
-  - `Provisionamento de Perfil (APIs Feign)`: Tempo gasto chamando os microsserviços.
-  - `Publicação SQS Auditoria (user-audit-queue)`: Tempo de publicação na fila SQS.
-  - `Publicação Kafka Cobrança (billing-events-topic)`: Tempo de publicação no tópico Kafka.
-  - `Publicação SQS Boas-Vindas (welcome-email-queue)`: Tempo de publicação na fila SQS.
-  - `Deserialização & Regras do Consumidor`: Tempo interno de overhead do listener.
+### A Solução: Arquitetura `FlowContext` via ThreadLocal e AOP
+Implementamos um mecanismo desacoplado e não-intrusivo para rastrear o ciclo de vida completo de cada requisição:
 
-### Painéis 9 e 10: 📤📥 Vazão de Mensageria
-- **Taxa de Produção (msg/s)**:
+1. **`@TrackFlow("<Nome do Fluxo>")`**:
+   - Anotado exclusivamente nos pontos de entrada do sistema:
+     - Controller REST: `@TrackFlow("GET /api/v1/orchestrator/users/{userId}")`
+     - Consumer Kafka: `@TrackFlow("Kafka Consumer: user-registration-topic")`
+   - Inicia uma pilha de contexto no [`FlowContext`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/src/main/java/com/gleidsonfersanp/observability/observability/flow/FlowContext.java) registrando `startNanos`.
+
+2. **`@TrackStep("<Nome da Fatia>")`**:
+   - Anotado nas interfaces das bordas externas:
+     - `CustomerClient`: `@TrackStep("API Customer (GET /customers/{userId})")`
+     - `BillingClient`: `@TrackStep("API Billing (GET /billing/accounts/{userId})")`
+     - `NotificationClient`: `@TrackStep("API Notificação (POST /notifications)")`
+     - `KafkaUserProducer`: `@TrackStep("Publicação Kafka (...)")`
+     - `SqsUserProducer`: `@TrackStep("Publicação SQS (...)")`
+   - Interceptado por [`FlowTrackingAspect`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/src/main/java/com/gleidsonfersanp/observability/observability/flow/FlowTrackingAspect.java), que mede a duração do join point e registra a fatia no `FlowContext` corrente da thread.
+
+3. **Cálculo da Fatia Residual ("Processamento Interno & Regras")**:
+   Ao finalizar o método do entrypoint (`joinPoint.proceed()`), o interceptor executa:
+   $$\text{internalNanos} = \max(0, \text{totalNanos} - \sum \text{stepNanos})$$
+   Em seguida, publica no `MeterRegistry` do Micrometer:
+   - `flow_slice_duration_seconds{flow="...", step="..."}` para cada subprocesso.
+   - `flow_slice_duration_seconds{flow="...", step="Processamento Interno & Regras"}` para o overhead interno.
+   - `flow_total_duration_seconds{flow="..."}` para a duração end-to-end do fluxo.
+
+---
+
+## 📈 5. Monitoramento Autoritativo de Kafka Lag (`KafkaLagMetricsBinder`)
+
+Para garantir que o lag do Kafka seja monitorado com precisão no Grafana mesmo sob cargas extremas ou sem consumidores ativos, implementamos [`KafkaLagMetricsBinder`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/src/main/java/com/gleidsonfersanp/observability/observability/KafkaLagMetricsBinder.java):
+1. Cria uma instância de `AdminClient` do Apache Kafka a partir das configurações do Spring.
+2. A cada 5 segundos, consulta os offsets correntes com `adminClient.listConsumerGroupOffsets(...)`.
+3. Consulta o último offset das partições no broker via `adminClient.listOffsets(OffsetSpec.latest())`.
+4. Calcula a diferença real:
+   $$\text{Lag} = \text{Offset}_{\text{broker}} - \text{Offset}_{\text{consumer}}$$
+5. Publica como Gauge do Micrometer: `kafka_consumer_lag_records{topic="...", group="..."}`.
+
+---
+
+## 📊 6. Especificação dos Painéis do Grafana (`grafana-dashboard.json`)
+
+O painel foi desenhado visando máxima legibilidade e ergonomia, sem truncamento de textos:
+
+### Linha 1: 🥧 Decomposição de Latência E2E por Fluxo (Gráficos de Pizza)
+Cada gráfico representa 100% do tempo de um fluxo específico, dividido estritamente em suas fatias internas:
+
+#### Painel 1.1: `🥧 Entrypoint REST Síncrono: GET /users/{userId}`
+- **Tipo**: Pie Chart (Donut)
+- **Consulta PromQL**:
+  ```promql
+  sum(rate(flow_slice_duration_seconds_sum{flow="GET /api/v1/orchestrator/users/{userId}"}[1m])) by (step)
+  ```
+- **Fatias exibidas**:
+  - `API Customer (GET /customers/{userId})`
+  - `API Billing (GET /billing/accounts/{userId})`
+  - `API Notificação (POST /notifications)`
+  - `Processamento Interno & Regras`
+
+#### Painel 1.2: `🥧 Entrypoint Assíncrono: Consumidor Kafka (user-registration-topic)`
+- **Tipo**: Pie Chart (Donut)
+- **Consulta PromQL**:
+  ```promql
+  sum(rate(flow_slice_duration_seconds_sum{flow="Kafka Consumer: user-registration-topic"}[1m])) by (step)
+  ```
+- **Fatias exibidas**:
+  - `API Customer (GET /customers/{userId})`
+  - `API Billing (GET /billing/accounts/{userId})`
+  - `API Notificação (POST /notifications)`
+  - `Publicação SQS (user-audit-queue)`
+  - `Publicação SQS (welcome-email-queue)`
+  - `Publicação Kafka (billing-events-topic)`
+  - `Processamento Interno & Regras`
+
+---
+
+### Linha 2: 🚦 Saúde das Integrações e Circuit Breakers
+Três cards largos (`w: 8`, `h: 4`) para evitar qualquer truncamento de texto:
+
+#### Painel 2.1: `Circuit Breaker: Customer Service`
+- **Consulta**:
+  ```promql
+  resilience4j_circuitbreaker_state{name="customer-service", state="closed"}
+  ```
+- **Formatação de Valor**: `1 -> 🟢 FECHADO` (Verde), `0 -> 🔴 ABERTO` (Vermelho).
+
+#### Painel 2.2: `Circuit Breaker: Billing Service`
+- **Consulta**:
+  ```promql
+  resilience4j_circuitbreaker_state{name="billing-service", state="closed"}
+  ```
+- **Formatação de Valor**: `1 -> 🟢 FECHADO` (Verde), `0 -> 🔴 ABERTO` (Vermelho).
+
+#### Painel 2.3: `Circuit Breaker: Notification Service`
+- **Consulta**:
+  ```promql
+  resilience4j_circuitbreaker_state{name="notification-service", state="closed"}
+  ```
+- **Formatação de Valor**: `1 -> 🟢 FECHADO` (Verde), `0 -> 🔴 ABERTO` (Vermelho).
+
+---
+
+### Linha 3: ⏱️ Latências e Taxas de Erro (Time Series)
+
+#### Painel 3.1: `⏱ Latência Ponta a Ponta (E2E) - Média vs Máxima`
+- **Média (s)**:
+  ```promql
+  sum(rate(flow_total_duration_seconds_sum{flow="GET /api/v1/orchestrator/users/{userId}"}[1m]))
+  /
+  sum(rate(flow_total_duration_seconds_count{flow="GET /api/v1/orchestrator/users/{userId}"}[1m]))
+  ```
+- **Pico Máximo (s)**:
+  ```promql
+  max(flow_total_duration_seconds_max{flow="GET /api/v1/orchestrator/users/{userId}"})
+  ```
+
+#### Painel 3.2: `🔥 Taxa de Falhas dos Circuit Breakers (%)`
+- **Consulta**:
+  ```promql
+  sum(rate(resilience4j_circuitbreaker_calls_seconds_count{kind="failed"}[1m])) by (name)
+  /
+  (sum(rate(resilience4j_circuitbreaker_calls_seconds_count{kind="successful"}[1m])) by (name)
+   + sum(rate(resilience4j_circuitbreaker_calls_seconds_count{kind="failed"}[1m])) by (name)) * 100
+  ```
+
+---
+
+### Linha 4: 📬 Mensageria e Filas (Kafka & SQS)
+
+#### Painel 4.1: `📦 Profundidade das Filas SQS (sqs_queue_depth)`
+- **Consulta**:
+  ```promql
+  sqs_queue_depth
+  ```
+- Plota automaticamente todas as filas descobertas dinamicamente pelo `SqsMetricsBinder` (`user-audit-queue`, `welcome-email-queue`, etc.).
+
+#### Painel 4.2: `🐢 Kafka Consumer Lag (kafka_consumer_lag_records)`
+- **Consulta**:
+  ```promql
+  kafka_consumer_lag_records
+  ```
+- Plota o lag real calculado diretamente no broker pelo `KafkaLagMetricsBinder` para os tópicos e grupos ativos.
+
+#### Painel 4.3: `⚡ Throughput de Mensageria (Produção vs Consumo)`
+- **Produção**:
   ```promql
   sum(rate(messaging_produce_seconds_count[1m])) by (method)
   ```
-- **Taxa de Consumo (msg/s)**:
+- **Consumo**:
   ```promql
   sum(rate(messaging_consume_seconds_count[1m])) by (method)
   ```
+
