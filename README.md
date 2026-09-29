@@ -1,9 +1,39 @@
 # Observability & Resilience Example
 Um projeto completo demonstrando microsserviços integrados com Spring Boot 3, Kafka, SQS (LocalStack), WireMock, Micrometer, Resilience4j, Prometheus, Grafana e Jaeger!
 
+## 🚀 Adoção do Starter Corporativo (`observability-spring-boot-starter`)
+
+Este projeto foi migrado para utilizar o [**observability-spring-boot-starter**](https://github.com/GleidsonFerSanP/observability-spring-boot-starter), um starter corporativo Spring Boot 3 reutilizável, modular e desacoplado.
+
+Toda a infraestrutura transversal de telemetria — incluindo interceptação de fluxos (`@TrackFlow`), etapas (`@TrackStep`), tags dinâmicas com SpEL (`@ObservationTag`), auditoria de pernas (`@LegAudit`), cálculo autoritativo de lag Kafka/SQS, mascaramento LGPD/PCI e filtros de Correlation ID (`cid`) — é provida automaticamente via auto-configuração do starter, deixando o código do microsserviço **100% focado no domínio de negócio (Zero Boilerplate)**.
+
+### Coordenadas Maven
+```xml
+<dependency>
+    <groupId>com.empresa.platform</groupId>
+    <artifactId>observability-spring-boot-starter</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
+
+### Principais Recursos Fornecidos pelo Starter:
+- **Arquitetura Hexagonal & Engine SPI**: Abstração `ObservabilityEngine` que desacopla a aplicação do backend de telemetria. Suporta chaveamento transparente entre `micrometer` (OpenTelemetry/Prometheus/Jaeger) e `datadog` (Datadog Trace Agent nativo).
+- **Flow Dimensions & Migração via Feature Flags**: Suporte nativo a variantes de fluxo (`variant="legacy"|"new"`) e integração não-intrusiva com frameworks de Feature Flags (Togglz, Unleash, LaunchDarkly) via `FeatureEvaluationListener`, permitindo análise A/B e decomposição de latência sem contaminação do código de negócio.
+- **Rastreabilidade Multicamada (Legs)**: Auditoria e metrificação de pernas de rede (`INBOUND`/`OUTBOUND`) para HTTP Feign, Kafka, SQS e JDBC.
+- **Documentação Técnica do Starter**:
+  - [Visão Geral e Arquitetura do Starter](https://github.com/GleidsonFerSanP/observability-spring-boot-starter/blob/master/docs/ARCHITECTURE.md)
+  - [Guia de Capacidades do Starter](https://github.com/GleidsonFerSanP/observability-spring-boot-starter/blob/master/docs/CAPABILITIES_GUIDE.md)
+  - [Referência de Configuração YAML](https://github.com/GleidsonFerSanP/observability-spring-boot-starter/blob/master/docs/CONFIGURATION_REFERENCE.md)
+  - [Catálogo de Schemas e Telemetria](https://github.com/GleidsonFerSanP/observability-spring-boot-starter/blob/master/docs/TELEMETRY_SCHEMA.md)
+
+---
+
 ## 📚 Documentação Completa
 A documentação detalhada da arquitetura, observabilidade e engenharia de caos está disponível na pasta [`documentacao/`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/README.md):
 - [**Visão Geral e Arquitetura**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/README.md)
+- [**Especificação Técnica: Engine SPI e Datadog Oficial**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/ESPECIFICACAO_TECNICA_ENGINE_DATADOG_E_VENDOR_NEUTRAL.md)
+- [**Guia de Flow Dimensions, Migração Operacional e Feature Flags**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_FLOW_DIMENSIONS_E_MIGRACAO_FEATURE_FLAGS.md)
+- [**Especificação Técnica para Starter Spring Boot**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/ESPECIFICACAO_TECNICA_STARTER_OBSERVABILIDADE.md)
 - [**Guia de Pernas de Execução (Legs) e Mascaramento SpEL**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_LEGS_E_AUDITORIA_DE_LOGS.md)
 - [**Como Metrificar por Stack Tecnológica**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_METRIFICACAO_DAS_STACKS.md)
 - [**Catálogo de Métricas e Consultas PromQL do Dashboard**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/CATALOGO_DE_METRICAS_E_QUERIES_DASHBOARD.md)
@@ -11,7 +41,6 @@ A documentação detalhada da arquitetura, observabilidade e engenharia de caos 
 - [**Guia de Alarmística, SLAs e Incidentes**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_ALARMISTICA_E_SLAS.md)
 - [**Guia de Observabilidade, SpEL e Métricas**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/OBSERVABILIDADE_E_METRICAS.md)
 - [**Guia de Abstração de Vendors e Provedores**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_ABSTRACAO_DE_VENDORS_E_PROVEDORES.md)
-- [**Guia de Flow Dimensions, Migração Operacional e Feature Flags**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_FLOW_DIMENSIONS_E_MIGRACAO_FEATURE_FLAGS.md)
 - [**Guia de Testes de Integração, E2E e Validação da Telemetria**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_TESTES_E2E_E_INTEGRACAO.md)
 - [**Cenários de Teste, Caos e Validação**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/CENARIOS_DE_TESTE_E_CAOS.md)
 
@@ -26,9 +55,9 @@ A documentação detalhada da arquitetura, observabilidade e engenharia de caos 
 | ![Loki Legs Stream](documentacao/evidencias/03-grafana-loki-legs-audit.png) | ![Loki Explore](documentacao/evidencias/04-grafana-loki-explore.png) |
 
 ## 🧪 Testes Automatizados (Stubs sobre Mocks & Validação da Telemetria)
-A aplicação conta com uma suíte de 21 testes de integração e ponta a ponta (E2E) que comprovam toda a telemetria (Logs, Métricas e Traces/SpEL) sem necessidade de mocks:
+A aplicação conta com uma suíte abrangente de **31 testes de integração e ponta a ponta (E2E)** que comprovam toda a telemetria (Logs, Métricas, Traces, SpEL, Feature Flags e Flow Dimensions) sem necessidade de mocks:
 ```bash
-# Executar todos os testes
+# Executar todos os 31 testes
 mvn test
 
 # Executar suíte específica (ex: E2E Síncrono)
@@ -36,6 +65,9 @@ mvn test -Dtest=UserOrchestratorE2EObservabilityIntegrationTest
 
 # Executar suíte de Correlation ID e Logback Padronizado
 mvn test -Dtest=CorrelationAndStandardLogbackIntegrationTest
+
+# Executar suíte de Migração de Fluxos com Feature Flags e Flow Dimensions
+mvn test -Dtest=FeatureFlagMigrationFlowIntegrationTest
 ```
 Consulte o [**Guia de Testes de Integração e E2E**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_TESTES_E2E_E_INTEGRACAO.md) para detalhes da arquitetura de testes e templates.
 
