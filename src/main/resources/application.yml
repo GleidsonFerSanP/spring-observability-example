@@ -1,0 +1,81 @@
+server:
+  port: 8080
+
+app:
+  integrations:
+    customer:
+      url: http://localhost:8081
+    billing:
+      url: http://localhost:8081
+    notification:
+      url: http://localhost:8081
+
+logging:
+  level:
+    com.gleidsonfersanp.observability: DEBUG
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces
+
+spring:
+  application:
+    name: user-orchestrator
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+      client:
+        config:
+          default:
+            connectTimeout: 1000
+            readTimeout: 2000
+    aws:
+      region:
+        static: us-east-1
+      credentials:
+        access-key: test
+        secret-key: test
+      sqs:
+        endpoint: http://localhost:4566
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: user-orchestrator-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+        ignoreExceptions:
+          - com.gleidsonfersanp.observability.shared.ResourceNotFoundException
+          - com.gleidsonfersanp.observability.shared.IntegrationBadRequestException
+    instances:
+      orchestrator:
+        baseConfig: default
+      customer-service:
+        baseConfig: default
+      billing-service:
+        baseConfig: default
+      notification-service:
+        baseConfig: default

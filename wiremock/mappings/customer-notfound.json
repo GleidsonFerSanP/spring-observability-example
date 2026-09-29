@@ -1,0 +1,12 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPattern": "/customers/notfound"
+  },
+  "response": {
+    "status": 404,
+    "jsonBody": {
+      "error": "Customer Not Found"
+    }
+  }
+}

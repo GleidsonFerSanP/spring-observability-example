@@ -1,0 +1,20 @@
+{
+  "scenarioName": "Flaky Notification",
+  "requiredScenarioState": "Success",
+  "newScenarioState": "Started",
+  "request": {
+    "method": "POST",
+    "url": "/notifications",
+    "bodyPatterns": [
+      {
+        "contains": "\"userId\":\"flake\""
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "status": "SENT_AFTER_RETRIES"
+    }
+  }
+}

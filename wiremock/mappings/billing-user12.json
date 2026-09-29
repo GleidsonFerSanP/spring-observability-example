@@ -1,0 +1,18 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPattern": "/billing/accounts/user12"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "plan": "Pro",
+      "status": "Active",
+      "billingType": "YEARLY"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPattern": "/customers/badrequest"
+  },
+  "response": {
+    "status": 400,
+    "jsonBody": {
+      "error": "Invalid request parameter"
+    }
+  }
+}

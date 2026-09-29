@@ -1,0 +1,377 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "obs-master",
+    "title": "Observability Master Dashboard",
+    "timezone": "browser",
+    "refresh": "5s",
+    "time": {"from": "now-5m", "to": "now"},
+    "panels": [
+      {
+        "id": 1,
+        "title": "🥧 Fatias do Fluxo Síncrono: GET /users/{userId}",
+        "description": "Decomposição do tempo total de processamento do endpoint REST síncrono. A pizza inteira representa 100% da duração da requisição, fatiada por subprocessos chamados.",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 9},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"customer-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"customer-service\"}[1m]))",
+            "legendFormat": "API Customer (GET /customers/{userId})",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"billing-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"billing-service\"}[1m]))",
+            "legendFormat": "API Billing (GET /billing/accounts/{userId})",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"notification-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"notification-service\"}[1m]))",
+            "legendFormat": "API Notificação (POST /notifications)",
+            "refId": "C"
+          },
+          {
+            "expr": "clamp_min((sum(rate(user_profile_provision_seconds_sum[1m])) / sum(rate(user_profile_provision_seconds_count[1m]))) - ((sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"customer-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"customer-service\"}[1m]))) + (sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"billing-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"billing-service\"}[1m]))) + (sum(rate(resilience4j_circuitbreaker_calls_seconds_sum{group=\"none\", name=\"notification-service\"}[1m])) / sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=\"notification-service\"}[1m])))), 0.01)",
+            "legendFormat": "Processamento Interno & Regras de Negócio",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        },
+        "options": {
+          "pieType": "donut",
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "values": ["percent", "value"]
+          },
+          "tooltip": {"mode": "single"}
+        }
+      },
+      {
+        "id": 2,
+        "title": "🥧 Fatias do Fluxo Orientado a Eventos: Consumidor Kafka",
+        "description": "Decomposição do tempo total de consumo do evento user-registration-topic. A pizza inteira representa 100% da duração do processamento do consumidor.",
+        "type": "piechart",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 9},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(rate(user_profile_provision_seconds_sum[1m])) / sum(rate(user_profile_provision_seconds_count[1m]))",
+            "legendFormat": "Provisionamento de Perfil (APIs Feign)",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(messaging_produce_seconds_sum{method=\"publishUserAudit\"}[1m])) / sum(rate(messaging_produce_seconds_count{method=\"publishUserAudit\"}[1m]))",
+            "legendFormat": "Publicação SQS Auditoria (user-audit-queue)",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(rate(messaging_produce_seconds_sum{method=\"publishBillingEvent\"}[1m])) / sum(rate(messaging_produce_seconds_count{method=\"publishBillingEvent\"}[1m]))",
+            "legendFormat": "Publicação Kafka Cobrança (billing-events-topic)",
+            "refId": "C"
+          },
+          {
+            "expr": "sum(rate(messaging_produce_seconds_sum{method=\"publishWelcomeEmail\"}[1m])) / sum(rate(messaging_produce_seconds_count{method=\"publishWelcomeEmail\"}[1m]))",
+            "legendFormat": "Publicação SQS Boas-Vindas (welcome-email-queue)",
+            "refId": "D"
+          },
+          {
+            "expr": "clamp_min((sum(rate(spring_kafka_listener_seconds_sum{name=~\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\"}[1m])) / sum(rate(spring_kafka_listener_seconds_count{name=~\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\"}[1m]))) - (sum(rate(user_profile_provision_seconds_sum[1m])) / sum(rate(user_profile_provision_seconds_count[1m]))), 0.05)",
+            "legendFormat": "Deserialização & Regras do Consumidor",
+            "refId": "E"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        },
+        "options": {
+          "pieType": "donut",
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "values": ["percent", "value"]
+          },
+          "tooltip": {"mode": "single"}
+        }
+      },
+      {
+        "id": 3,
+        "title": "⚡ Circuit Breaker: Customer Service",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 9, "w": 8, "h": 4},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "resilience4j_circuitbreaker_state{group=\"none\", name=\"customer-service\", state=\"closed\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"color": "red", "text": "🔴 ABERTO"}, "1": {"color": "green", "text": "🟢 FECHADO"}}}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value",
+          "reduceOptions": {"calcs": ["lastNotNull"]}
+        }
+      },
+      {
+        "id": 4,
+        "title": "⚡ Circuit Breaker: Billing Service",
+        "type": "stat",
+        "gridPos": {"x": 8, "y": 9, "w": 8, "h": 4},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "resilience4j_circuitbreaker_state{group=\"none\", name=\"billing-service\", state=\"closed\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"color": "red", "text": "🔴 ABERTO"}, "1": {"color": "green", "text": "🟢 FECHADO"}}}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value",
+          "reduceOptions": {"calcs": ["lastNotNull"]}
+        }
+      },
+      {
+        "id": 5,
+        "title": "⚡ Circuit Breaker: Notification Service",
+        "type": "stat",
+        "gridPos": {"x": 16, "y": 9, "w": 8, "h": 4},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "resilience4j_circuitbreaker_state{group=\"none\", name=\"notification-service\", state=\"closed\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"color": "red", "text": "🔴 ABERTO"}, "1": {"color": "green", "text": "🟢 FECHADO"}}}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value",
+          "reduceOptions": {"calcs": ["lastNotNull"]}
+        }
+      },
+      {
+        "id": 6,
+        "title": "⏱ Latência E2E do Fluxo GET no Tempo",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 13, "w": 12, "h": 7},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(rate(user_profile_provision_seconds_sum[1m])) / sum(rate(user_profile_provision_seconds_count[1m]))",
+            "legendFormat": "E2E Média (s)",
+            "refId": "A"
+          },
+          {
+            "expr": "max(user_profile_provision_seconds_max)",
+            "legendFormat": "E2E Pico Máx (s)",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {"lineWidth": 2, "fillOpacity": 15, "gradientMode": "scheme", "showPoints": "never"}
+          }
+        },
+        "options": {"tooltip": {"mode": "multi"}}
+      },
+      {
+        "id": 7,
+        "title": "📊 Taxa de Erros por Integração (%)",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 13, "w": 6, "h": 7},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=~\"customer-service|billing-service|notification-service\", kind=\"failed\"}[5m])) by (name) / (sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=~\"customer-service|billing-service|notification-service\", kind=\"successful\"}[5m])) by (name) + sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=~\"customer-service|billing-service|notification-service\", kind=\"failed\"}[5m])) by (name)) * 100",
+            "legendFormat": "{{name}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 20}]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value_and_name",
+          "reduceOptions": {"calcs": ["lastNotNull"]},
+          "orientation": "vertical"
+        }
+      },
+      {
+        "id": 8,
+        "title": "🎯 Throughput das Integrações (req/s)",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 13, "w": 6, "h": 7},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(rate(resilience4j_circuitbreaker_calls_seconds_count{group=\"none\", name=~\"customer-service|billing-service|notification-service\"}[1m])) by (name)",
+            "legendFormat": "{{name}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"color": "blue", "value": null}]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value_and_name",
+          "reduceOptions": {"calcs": ["lastNotNull"]},
+          "orientation": "vertical"
+        }
+      },
+      {
+        "id": 9,
+        "title": "📦 Lag Real do Kafka por Tópico (Mensagens Pendentes)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 20, "w": 12, "h": 7},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(kafka_consumer_lag_records) by (topic)",
+            "legendFormat": "{{topic}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"lineWidth": 2, "fillOpacity": 25, "gradientMode": "scheme", "showPoints": "never"}
+          }
+        },
+        "options": {"tooltip": {"mode": "multi"}}
+      },
+      {
+        "id": 10,
+        "title": "📨 Profundidade de Filas SQS (Mensagens Acumuladas)",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 20, "w": 12, "h": 7},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sqs_queue_depth",
+            "legendFormat": "{{queue}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"lineWidth": 2, "fillOpacity": 25, "gradientMode": "scheme", "showPoints": "never"}
+          }
+        },
+        "options": {"tooltip": {"mode": "multi"}}
+      },
+      {
+        "id": 11,
+        "title": "📤 Taxa de Produção (msg/s)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 27, "w": 8, "h": 7},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(rate(messaging_produce_seconds_count[1m])) by (method)",
+            "legendFormat": "{{method}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": {"lineWidth": 2, "fillOpacity": 15, "gradientMode": "scheme", "showPoints": "never"}
+          }
+        },
+        "options": {"tooltip": {"mode": "multi"}}
+      },
+      {
+        "id": 12,
+        "title": "📥 Taxa de Consumo (msg/s)",
+        "type": "timeseries",
+        "gridPos": {"x": 8, "y": 27, "w": 8, "h": 7},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(rate(messaging_consume_seconds_count[1m])) by (method)",
+            "legendFormat": "{{method}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": {"lineWidth": 2, "fillOpacity": 15, "gradientMode": "scheme", "showPoints": "never"}
+          }
+        },
+        "options": {"tooltip": {"mode": "multi"}}
+      },
+      {
+        "id": 13,
+        "title": "💳 Proporção de Planos de Cobrança",
+        "type": "piechart",
+        "gridPos": {"x": 16, "y": 27, "w": 8, "h": 7},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(increase(user_profile_provision_seconds_count[1h])) by (billing_type)",
+            "legendFormat": "{{billing_type}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "pieType": "donut",
+          "legend": {"displayMode": "table", "placement": "right", "values": ["percent"]}
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}
