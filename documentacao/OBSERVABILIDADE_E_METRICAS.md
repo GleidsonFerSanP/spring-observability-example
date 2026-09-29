@@ -263,3 +263,27 @@ Três cards largos (`w: 8`, `h: 4`) para evitar qualquer truncamento de texto:
   sum(rate(messaging_consume_seconds_count[1m])) by (method)
   ```
 
+---
+
+## 🗄️ 7. Observabilidade de Banco de Dados Relacional (PostgreSQL / HikariCP)
+
+A aplicação foi estendida para garantir total visibilidade sobre o comportamento de chamadas a bancos de dados relacionais e da gerência do pool de conexões (HikariCP). Isso permite analisar de perto a latência de consultas e também agir de forma preditiva sobre o uso e esgotamento do pool.
+
+### 7.1. O que foi monitorado?
+
+1. **Métricas de Pool de Conexões (HikariCP)**: Habilitado nativamente via Actuator através da configuração `spring.datasource.hikari.pool-name: observability-hikari-pool`.
+2. **Tempo de Execução e Métricas do Hibernate**: Habilitado via injeção de estatísticas `hibernate.generate_statistics: true` e `session_scoped_interceptor: org.hibernate.resource.jdbc.spi.StatementInspector`. 
+
+### 7.2. Principais Métricas Exportadas para o Prometheus
+
+| Métrica Prometheus | O que indica? | Sinal de Alerta |
+| :--- | :--- | :--- |
+| `hikaricp_connections_active` | Número de conexões atualmente atreladas a uma transação (em uso). | Crescimento contínuo pode indicar *slow queries* prendendo conexões. |
+| `hikaricp_connections_idle` | Número de conexões abertas com o banco aguardando serem utilizadas. | Se for sempre zero, seu pool base pode estar subdimensionado. |
+| `hikaricp_connections_pending` | Threads aguardando a liberação de uma conexão (fila de espera). | Qualquer valor `> 0` significa latência extra introduzida na aplicação. |
+| `hikaricp_connections_timeout_total` | Quantidade de vezes em que o tempo de espera máximo (`connection-timeout`) na fila do pool estourou. | Valor crescente causa erros 500 no cliente. Requer atenção imediata (exaustão do pool). |
+| `hikaricp_connections` | Total de conexões ativas e ociosas no momento. | Se mantiver travado no `maximum-pool-size`, indica alta contenção. |
+
+### 7.3. Métricas adicionais e Tracing (O que veremos no Grafana e Jaeger)
+
+A configuração permite que no Jaeger todo acesso ao banco seja tracejado. Um `Span` do banco de dados relacional mostrará claramente o comando executado e a duração. No lado das métricas, os tempos de cada *slow query* e falha de timeout podem disparar alertas customizados antes que a exaustão se torne completa.

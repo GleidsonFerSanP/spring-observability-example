@@ -60,21 +60,51 @@ Cada span carrega as tags de negócio injetadas pelo nosso aspecto (`userId`, `b
 
 ---
 
-## 💾 4. Engenharia de Caos em Banco de Dados (`/api/db-chaos`)
+## 🌪️ 4. Cenários de Caos em Banco de Dados Relacional (PostgreSQL / HikariCP)
 
-O controlador [`DatabaseChaosController`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/src/main/java/com/gleidsonfersanp/observability/database/DatabaseChaosController.java) e o serviço [`DatabaseChaosService`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/src/main/java/com/gleidsonfersanp/observability/database/DatabaseChaosService.java) fornecem endpoints dedicados para simular anomalias de persistência:
+Implementamos um controlador dedicado (`DatabaseChaosController`) para injetar cenários de lentidão e falhas no pool de conexões do banco de dados PostgreSQL configurado na aplicação.
 
-### 1. Transações Normais
-- **POST** `/api/db-chaos/normal?amount=250.0`: Cria uma transação persistida em banco.
-- **GET** `/api/db-chaos/normal`: Recupera todas as transações cadastradas.
+### 4.1. Cenário Base (Operação Normal)
 
-### 2. Slow Query (Latência Artificial no Banco)
-- **GET** `/api/db-chaos/slow-query?delaySeconds=5`:
-  Executa uma query simulada mantendo a conexão ocupada por 5 segundos. Permite visualizar o aumento no tempo de espera do pool e a duração do span no Jaeger.
+Para ter um *baseline* (linha de base) das métricas de tempo de execução (latência) e uso do pool, você pode realizar chamadas normais:
 
-### 3. Exaustão do Pool de Conexões (HikariCP Starvation)
-- **POST** `/api/db-chaos/exhaust-pool?concurrentRequests=10&holdTimeSeconds=10`:
-  Como o pool HikariCP está configurado com `maximum-pool-size: 5` e `connection-timeout: 3000ms`, disparar 10 requisições simultâneas retendo conexões por 10 segundos força o esgotamento do pool.
-  - **Efeito Observado**: Lançamento de `SQLTransientConnectionException: HikariPool-1 - Connection is not available, request timed out after 3000ms`.
-  - **Métricas no Prometheus**: As métricas do HikariCP (`hikaricp_connections_active`, `hikaricp_connections_pending`, `hikaricp_connections_timeout_total`) refletem o gargalo instantaneamente.
+**Comando:**
+```bash
+# Grava uma transação simples no banco
+curl -X POST "http://localhost:8080/api/db-chaos/normal?amount=250.0"
 
+# Busca transações gravadas
+curl -X GET "http://localhost:8080/api/db-chaos/normal"
+```
+**O que observar:** O tempo da requisição deve ser rápido (< 50ms) e o pool de conexões (visível nas métricas `hikaricp_connections_active_total`) deve apenas piscar em `1` e logo voltar a `0` quando a conexão for devolvida ao pool.
+
+### 4.2. Cenário de Lentidão (Slow Query)
+
+Uma transação pode demorar para ser executada (por lock de tabela, processamento complexo, gargalo de disco, etc.). Este cenário simula uma "slow query" amarrando a conexão por N segundos.
+
+**Comando:**
+```bash
+# Segura a conexão de banco de dados por 8 segundos
+curl -X GET "http://localhost:8080/api/db-chaos/slow-query?delaySeconds=8"
+```
+
+**Como observar a métrica:**
+- **Prometheus/Grafana:** A métrica `hikaricp_connections_active_total` ficará no valor `1` durante os 8 segundos.
+- **Tracing (Jaeger):** Ao procurar esse Trace, o *span* de banco de dados (capturado pelo Hibernate interceptor) mostrará uma duração excessiva.
+
+### 4.3. Exaustão do Pool de Conexões (Connection Pool Exhaustion)
+
+O HikariCP está configurado com um pool bem restrito (`maximum-pool-size: 5`) e um timeout muito curto (`connection-timeout: 3000ms`). Isso nos permite facilmente simular a exaustão do pool (quando não há conexões disponíveis para novas requisições).
+
+**Comando:**
+```bash
+# Dispara 12 requisições concorrentes em background
+# Cada uma vai segurar 1 conexão por 10 segundos
+curl -X POST "http://localhost:8080/api/db-chaos/exhaust-pool?concurrentRequests=12&holdTimeSeconds=10"
+```
+
+**Como observar a falha e o caos:**
+1. **Métricas de Conexão:** A métrica `hikaricp_connections_active_total` atingirá o topo (`5`) rapidamente e permanecerá bloqueada.
+2. **Métricas de Fila:** A métrica `hikaricp_connections_pending_total` saltará, indicando que há threads em fila de espera implorando por uma conexão.
+3. **Métricas de Timeout:** Como a fila ultrapassará os 3 segundos de limite configurado no `application.yml`, o HikariCP começará a rejeitar threads com `SQLTransientConnectionException`. Isso refletirá na métrica `hikaricp_connections_timeout_total`.
+4. **Logs da Aplicação:** O console será bombardeado com os logs de erro de tempo excedido aguardando o recurso.
