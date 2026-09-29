@@ -225,6 +225,11 @@ Abaixo está a especificação completa de cada painel configurado no arquivo [`
 | **13** | `💳 Proporção de Planos de Cobrança` | `piechart` | `16, 27, 8, 7` | `user_profile_provision_seconds_count` |
 | **14** | `🚨 Central de Alarmística e Violações de SLA (Alerts/sec)` | `timeseries` | `0, 34, 16, 7` | `alerts_triggered_total` |
 | **15** | `⚠️ Incidentes e Violações por Alvo` | `barchart` | `16, 34, 8, 7` | `alerts_triggered_total` |
+| **16** | `🛑 Ponto Exato de Interrupção de Fluxos (Dead Stop Breakdown)` | `barchart` | `0, 41, 14, 8` | `flow_interruption_total` |
+| **17** | `🔍 Auditoria de Quebras por Step e Causa Raiz` | `table` | `14, 41, 10, 8` | `flow_interruption_total` |
+| **18** | `📜 Live Stream de Logs das Legs (Loki & Auditoria de Payloads Mascarados)` | `logs` | `0, 49, 24, 12` | `Loki Stream {app="user-orchestrator"}` |
+| **19** | `📊 Volume de Pernas de Execução por Alvo e Fase` | `timeseries` | `0, 61, 12, 8` | `count_over_time(leg_target, leg_phase)` |
+| **20** | `⏱️ Latência por Perna de Comunicação (Métrica Log-derived / Prometheus)` | `timeseries` | `12, 61, 12, 8` | `flow_slice_duration_seconds_*` |
 
 ---
 
@@ -469,6 +474,73 @@ Abaixo está a especificação completa de cada painel configurado no arquivo [`
 - **Racional Matemático e Operacional**:
   - Gráfico de barras que quantifica o total acumulado de incidentes nos últimos 15 minutos agrupado pelo componente alvo (ex: `billing-service`, `API Customer (GET /customers/{userId})`, `user-registration-topic`).
   - Permite identificar instantaneamente o "vilão da arquitetura" durante um incidente.
+
+---
+
+#### Painel ID 16: `🛑 Ponto Exato de Interrupção de Fluxos (Dead Stop Breakdown)`
+- **Tipo**: `barchart` (Orientação horizontal)
+- **GridPos**: `x: 0, y: 41, w: 14, h: 8`
+- **Consulta PromQL**:
+  ```promql
+  sum(increase(flow_interruption_total[15m])) by (failed_step, error_type)
+  ```
+- **Legenda**: `{{failed_step}} [{{error_type}}]`
+- **Racional Matemático e Operacional**:
+  - Exibe exatamente em qual step a transação morreu (Dead Stop) e a tipagem do erro (`CIRCUIT_BREAKER_OPEN`, `CLIENT_ERROR`, etc.), eliminando a adivinhação do time de suporte em incidentes de cascata.
+
+---
+
+#### Painel ID 17: `🔍 Auditoria de Quebras por Step e Causa Raiz`
+- **Tipo**: `table`
+- **GridPos**: `x: 14, y: 41, w: 10, h: 8`
+- **Consulta PromQL**:
+  ```promql
+  sum by (flow, failed_step, error_type) (flow_interruption_total)
+  ```
+- **Racional Matemático e Operacional**:
+  - Tabela instantânea quantificando as falhas por fluxo, step problemático e tipo de erro, ordenada de forma decrescente para priorização de sustentação.
+
+---
+
+#### Painel ID 18: `📜 Live Stream de Logs das Legs (Loki & Auditoria de Payloads Mascarados)`
+- **Tipo**: `logs` (Datasource Grafana Loki)
+- **GridPos**: `x: 0, y: 49, w: 24, h: 12`
+- **Consulta LogQL**:
+  ```logql
+  {app="user-orchestrator", leg_type=~"INBOUND|OUTBOUND"}
+  ```
+- **Racional Matemático e Operacional**:
+  - Painel de logs ao vivo alimentado pelo Loki via push direto do `loki-logback-appender`.
+  - Exibe o payload de cada perna de comunicação (`REQUEST` e `RESPONSE`) com mascaramento SpEL garantido em tempo de execução.
+  - Possui o recurso **Derived Fields**: ao clicar no valor do `traceId`, o Grafana abre automaticamente a visualização do Jaeger Trace correspondente.
+
+---
+
+#### Painel ID 19: `📊 Volume de Pernas de Execução por Alvo e Fase`
+- **Tipo**: `timeseries` (Datasource Grafana Loki)
+- **GridPos**: `x: 0, y: 61, w: 12, h: 8`
+- **Consulta LogQL**:
+  ```logql
+  sum(count_over_time({app="user-orchestrator", leg_target!="none"}[1m])) by (leg_target, leg_phase)
+  ```
+- **Legenda**: `{{leg_target}} [{{leg_phase}}]`
+- **Racional Matemático e Operacional**:
+  - Extrai métricas agregadas diretamente dos streams de log do Loki (`count_over_time`).
+  - Permite verificar a simetria entre requisições disparadas (`REQUEST`) e respostas obtidas (`RESPONSE`) para cada parceiro externo.
+
+---
+
+#### Painel ID 20: `⏱️ Latência por Perna de Comunicação (Métrica Log-derived / Prometheus)`
+- **Tipo**: `timeseries` (Datasource Prometheus)
+- **GridPos**: `x: 12, y: 61, w: 12, h: 8`
+- **Unidade**: Segundos (`s`)
+- **Consulta PromQL**:
+  ```promql
+  sum(rate(flow_slice_duration_seconds_sum{step=~"step.api.*"}[1m])) by (step) / sum(rate(flow_slice_duration_seconds_count{step=~"step.api.*"}[1m])) by (step)
+  ```
+- **Legenda**: `Média Latência: {{step}}`
+- **Racional Matemático e Operacional**:
+  - Mede a evolução temporal da latência média das pernas de saída (Customer, Billing, Notification), permitindo isolar degradações de rede e infraestrutura de terceiros.
 
 ---
 

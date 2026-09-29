@@ -60,4 +60,8 @@ public class AlertDispatcher {
     public List<AlertEvent> getRecentAlerts() {
         return Collections.unmodifiableList(new LinkedList<>(recentAlerts));
     }
+
+    public void clearAlerts() {
+        recentAlerts.clear();
+    }
 }

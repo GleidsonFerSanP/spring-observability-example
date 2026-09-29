@@ -405,6 +405,69 @@
         "options": {
           "sortBy": [{"displayName": "Value", "desc": true}]
         }
+      },
+      {
+        "id": 18,
+        "title": "📜 Live Stream de Logs das Legs (Loki & Auditoria de Payloads Mascarados)",
+        "description": "Stream em tempo real de todas as pernas de comunicação (INBOUND e OUTBOUND). Payloads sensíveis chegam aqui pré-mascarados via SpEL, com rastreabilidade direta para o trace distribuído (Jaeger).",
+        "type": "logs",
+        "gridPos": {"x": 0, "y": 49, "w": 24, "h": 12},
+        "datasource": {"type": "loki", "uid": "loki-logs"},
+        "targets": [
+          {
+            "datasource": {"type": "loki", "uid": "loki-logs"},
+            "expr": "{app=\"user-orchestrator\", leg_type=~\"INBOUND|OUTBOUND\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showLabels": true,
+          "wrapLogMessage": true,
+          "enableLogDetails": true,
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 19,
+        "title": "📊 Volume de Pernas de Execução por Alvo e Fase",
+        "description": "Distribuição de requisições e respostas tratadas por cada cliente/controlador interceptado pelo LogLeg.",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 61, "w": 12, "h": 8},
+        "datasource": {"type": "loki", "uid": "loki-logs"},
+        "targets": [
+          {
+            "datasource": {"type": "loki", "uid": "loki-logs"},
+            "expr": "sum(count_over_time({app=\"user-orchestrator\", leg_target!=\"none\"}[1m])) by (leg_target, leg_phase)",
+            "legendFormat": "{{leg_target}} [{{leg_phase}}]",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "sum"]}
+        }
+      },
+      {
+        "id": 20,
+        "title": "⏱️ Latência por Perna de Comunicação (Métrica Log-derived via Loki / Prometheus)",
+        "description": "Medição contínua da latência das integrações por p95/média.",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 61, "w": 12, "h": 8},
+        "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+        "targets": [
+          {
+            "expr": "sum(rate(flow_slice_duration_seconds_sum{step=~\"step.api.*\"}[1m])) by (step) / sum(rate(flow_slice_duration_seconds_count{step=~\"step.api.*\"}[1m])) by (step)",
+            "legendFormat": "Média Latência: {{step}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean"]}
+        }
       }
     ]
   },

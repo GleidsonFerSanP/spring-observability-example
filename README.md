@@ -4,6 +4,7 @@ Um projeto completo demonstrando microsserviços integrados com Spring Boot 3, K
 ## 📚 Documentação Completa
 A documentação detalhada da arquitetura, observabilidade e engenharia de caos está disponível na pasta [`documentacao/`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/README.md):
 - [**Visão Geral e Arquitetura**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/README.md)
+- [**Guia de Pernas de Execução (Legs) e Mascaramento SpEL**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_LEGS_E_AUDITORIA_DE_LOGS.md)
 - [**Como Metrificar por Stack Tecnológica**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_METRIFICACAO_DAS_STACKS.md)
 - [**Catálogo de Métricas e Consultas PromQL do Dashboard**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/CATALOGO_DE_METRICAS_E_QUERIES_DASHBOARD.md)
 - [**Registro de Decisões Arquiteturais (ADRs)**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/DECISOES_ARQUITETURAIS_ADR.md)
@@ -21,6 +22,7 @@ Aguarde alguns segundos e acesse as ferramentas de observabilidade:
 - **Grafana**: http://localhost:3000 (admin/admin)
 - **Prometheus**: http://localhost:9090
 - **Jaeger (Traces)**: http://localhost:16686
+- **Grafana Loki (Logs)**: http://localhost:3100
 
 ## Chaos Engineering / Simulações de Falhas
 - **Timeout**: `curl http://localhost:8080/api/v1/orchestrator/users/slow`

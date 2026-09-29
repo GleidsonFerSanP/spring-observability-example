@@ -7,6 +7,10 @@ import com.gleidsonfersanp.observability.domain.UserRegistrationRequest;
 import com.gleidsonfersanp.observability.observability.alerting.AlertDispatcher;
 import com.gleidsonfersanp.observability.observability.alerting.AlertEvent;
 import com.gleidsonfersanp.observability.observability.flow.TrackFlow;
+import com.gleidsonfersanp.observability.observability.leg.LegType;
+import com.gleidsonfersanp.observability.observability.leg.LogLeg;
+import com.gleidsonfersanp.observability.observability.leg.MaskField;
+import com.gleidsonfersanp.observability.observability.leg.MaskPattern;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,6 +35,16 @@ public class UserOrchestratorController {
 
     // Existing sync flow
     @TrackFlow("GET /api/v1/orchestrator/users/{userId}")
+    @LogLeg(
+        target = "user-orchestrator",
+        type = com.gleidsonfersanp.observability.observability.leg.LegType.INBOUND,
+        mask = {
+            @com.gleidsonfersanp.observability.observability.leg.MaskField(
+                expression = "#result?.customer()?.email()", 
+                pattern = com.gleidsonfersanp.observability.observability.leg.MaskPattern.EMAIL_PARTIAL
+            )
+        }
+    )
     @GetMapping("/users/{userId}")
     public ResponseEntity<UserProfile> getUserProfile(@PathVariable String userId) {
         UserProfile profile = orchestratorService.fetchAndProvisionUserProfile(userId);
@@ -39,6 +53,16 @@ public class UserOrchestratorController {
 
     // New Async Flow Entrypoint
     @TrackFlow("POST /api/v1/orchestrator/users")
+    @LogLeg(
+        target = "user-orchestrator",
+        type = com.gleidsonfersanp.observability.observability.leg.LegType.INBOUND,
+        mask = {
+            @com.gleidsonfersanp.observability.observability.leg.MaskField(
+                expression = "#request.email", 
+                pattern = com.gleidsonfersanp.observability.observability.leg.MaskPattern.EMAIL_PARTIAL
+            )
+        }
+    )
     @PostMapping("/users")
     public ResponseEntity<Map<String, String>> registerUser(@RequestBody UserRegistrationRequest request) {
         orchestratorService.initiateUserRegistration(request);

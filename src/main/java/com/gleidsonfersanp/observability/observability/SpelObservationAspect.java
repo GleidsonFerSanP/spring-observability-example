@@ -12,12 +12,14 @@ import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 
 @Aspect
 @Component
+@Order(20)
 public class SpelObservationAspect {
 
     private static final Logger log = LoggerFactory.getLogger(SpelObservationAspect.class);

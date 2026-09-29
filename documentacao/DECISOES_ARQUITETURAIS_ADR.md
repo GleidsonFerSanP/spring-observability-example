@@ -223,3 +223,41 @@ O risco clássico é o **Vendor Lock-in**: desenvolvedores adicionam bibliotecas
 - **Negativas**:
   - Requer que o Datadog Agent ou backend de destino esteja com o receptor OTLP habilitado (padrão em infraestruturas modernas de Kubernetes).
 
+---
+
+## ADR 10: Rastreamento Estruturado de Pernas de Execução (Legs), Auditoria de Payloads e Mascaramento SpEL via Grafana Loki
+
+### Contexto
+Em arquiteturas de microsserviços e orquestradores distribuídos, a visualização exclusiva de métricas agregadas e traces não é suficiente para certas investigações e auditorias operacionais. Engenheiros e auditores precisam:
+1. Conhecer detalhadamente as etapas ou "pernas" (Legs) de comunicação (Inbound, Outbound, Internal) disparadas em cada transação.
+2. Inspecionar o que foi submetido em cada chamada e qual foi a resposta exata retornada pelos serviços parceiros.
+3. Garantir conformidade estrita com regulamentações como **LGPD** e **PCI-DSS**, prevenindo qualquer vazamento acidental de dados sensíveis (senhas, cartões de crédito, CPFs, e-mails) nos logs.
+4. **Garantir a integridade absoluta dos dados de negócio**: mecanismos ingênuos de mascaramento que alteram diretamente os DTOs em memória corrompem o processamento subsequente da aplicação.
+5. Adotar uma plataforma de centralização de logs que se integre nativamente com a pilha já adotada (Prometheus, Jaeger, Grafana).
+
+### Decisão
+1. **Abstração Declarativa de Pernas com `@LogLeg` e `@MaskField`**:
+   - Criar anotações declarativas para delimitar pernas de comunicação em Controllers, Clientes HTTP e Consumers de mensageria.
+   - Fornecer suporte a mascaramento granular de campos utilizando expressões **SpEL** (*Spring Expression Language*) avaliadas contra os objetos `#request`, `#args` e `#result`.
+2. **Garantia de Immutabilidade via Árvores Jackson (`JsonNode`)**:
+   - Os DTOs de negócio jamais são modificados em memória.
+   - O mascarador serializa o objeto para uma árvore JSON desvinculada (`JsonNode`) e aplica as mutações de mascaramento estritamente sobre a árvore temporária usada pelo logger.
+3. **Padrões de Máscara Pré-configurados**:
+   - `EMAIL_PARTIAL` (ex.: `j***e@example.com`), `CPF_PARTIAL` (ex.: `123.***.***-00`), `CARD_PARTIAL` (ex.: `4111-11**-****-1234`), `PASSWORD` (`********`), `FULL_MASK` (`***REDACTED***`) e `CUSTOM`.
+4. **Gerenciamento de Contexto Sequencial (`LegContext`)**:
+   - Pilha em `ThreadLocal` para numerar sequencialmente as pernas da transação (`legNumber`, `parentLegNumber`) e computar latências individuais de cada perna.
+5. **Adoção do Grafana Loki como Plataforma de Logs**:
+   - Ingestão via `com.github.loki4j:loki-logback-appender` enviando lotes assíncronos diretamente da JVM para a porta `:3100` do Loki sem exigir agentes adicionais no host.
+   - Indexação baseada em labels (`app`, `level`, `leg_type`, `leg_target`, `leg_phase`), reduzindo consumo de disco e CPU.
+   - Correlação bidirecional com o Jaeger via Grafana *Derived Fields* (`traceId`).
+
+### Consequências
+- **Positivas**:
+  - Visibilidade de ponta a ponta com auditoria completa de payloads.
+  - Zero intrusividade: services e regras de negócio não possuem qualquer código de log ou máscara.
+  - Segurança jurídica e técnica: dados sensíveis nunca chegam em texto claro ao Loki ou disco.
+  - Integração perfeita no Grafana: navegação fluida de Métricas ➔ Logs do Loki ➔ Traces do Jaeger com um clique.
+- **Negativas**:
+  - Pequeno overhead de serialização JSON em métodos anotados com `includePayload = true`, devendo ser desabilitado ou reservado para fronteiras críticas em cenários de altíssimo throughput.
+
+

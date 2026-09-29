@@ -21,3 +21,16 @@ datasources:
     jsonData:
       nodeGraph:
         enabled: true
+
+  - name: Loki
+    uid: loki-logs
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+    jsonData:
+      derivedFields:
+        - datasourceUid: jaeger-traces
+          matcherRegex: '"traceId":"([0-9a-fA-F]+)"'
+          name: TraceID
+          url: '$${__value.raw}'

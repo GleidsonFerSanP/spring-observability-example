@@ -82,13 +82,14 @@ flowchart TD
 ## 📂 Estrutura da Documentação
 
 - [**Arquitetura e Fluxos**](README.md): Este documento, contendo visão geral, arquitetura e componentes.
+- [**Guia de Pernas de Execução (Legs) e Mascaramento SpEL**](GUIA_DE_LEGS_E_AUDITORIA_DE_LOGS.md): Arquitetura de rastreamento de saltos (INBOUND/OUTBOUND), auditoria de payloads, mascaramento SpEL com conformidade LGPD/PCI-DSS e ingestão no Grafana Loki.
 - [**Como Metrificar por Stack Tecnológica**](GUIA_METRIFICACAO_DAS_STACKS.md): Manual técnico passo a passo de como metrificar cada stack (MVC, Feign, Resilience4j, Kafka, SQS, HikariCP, Tracing, Alarmística).
-- [**Catálogo de Métricas e Queries PromQL**](CATALOGO_DE_METRICAS_E_QUERIES_DASHBOARD.md): Referência exaustiva de todas as formas customizadas de metrificar e as 15 consultas PromQL do Dashboard Grafana.
+- [**Catálogo de Métricas e Queries PromQL**](CATALOGO_DE_METRICAS_E_QUERIES_DASHBOARD.md): Referência exaustiva de todas as formas customizadas de metrificar e as 20 consultas do Dashboard Grafana (Prometheus & Loki).
 - [**Guia de Alarmística, SLAs e Incidentes**](GUIA_DE_ALARMISTICA_E_SLAS.md): Arquitetura de alarmística não-intrusiva em 2 camadas, interceptação de disjuntores, SLA Guard e Prometheus alerts.
 - [**Observabilidade e Métricas**](OBSERVABILIDADE_E_METRICAS.md): Explicação do Aspecto SpEL, tags customizadas, rastreamento de fatias por entrypoint, queries PromQL e estrutura do painel Grafana.
-- [**Registro de Decisões Arquiteturais (ADRs)**](DECISOES_ARQUITETURAIS_ADR.md): Racional detalhado de todas as decisões tomadas, problemas, soluções e trade-offs.
+- [**Registro de Decisões Arquiteturais (ADRs)**](DECISOES_ARQUITETURAIS_ADR.md): Racional detalhado de todas as 10 decisões tomadas, problemas, soluções e trade-offs.
 - [**Cenários de Teste e Caos**](CENARIOS_DE_TESTE_E_CAOS.md): Detalhamento dos cenários de teste de carga contínua, simulação de falhas e disjuntores.
-- [**Guia de Abstração de Vendors e Provedores**](GUIA_DE_ABSTRACAO_DE_VENDORS_E_PROVEDORES.md): Arquitetura agnóstica de fornecedor (Prometheus, Jaeger, Datadog via OTLP, Dynatrace, New Relic, OTel Collector).
+- [**Guia de Abstração de Vendors e Provedores**](GUIA_DE_ABSTRACAO_DE_VENDORS_E_PROVEDORES.md): Arquitetura agnóstica de fornecedor (Prometheus, Jaeger, Loki, Datadog via OTLP, Dynatrace, New Relic, OTel Collector).
 - [**Especificação Técnica para Starter Spring Boot**](ESPECIFICACAO_TECNICA_STARTER_OBSERVABILIDADE.md): Especificação completa e guia para extração da observabilidade em um starter reutilizável por um Agente de IA.
 
 ---

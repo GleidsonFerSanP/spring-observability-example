@@ -21,6 +21,9 @@ public class KafkaUserConsumer {
     private final ObjectMapper objectMapper;
     private final KafkaUserProducer kafkaProducer;
 
+    @org.springframework.beans.factory.annotation.Value("${app.kafka.user-consumer.delay-ms:120}")
+    private long delayMs = 120;
+
     public KafkaUserConsumer(UserOrchestratorService service, SqsUserProducer sqsProducer, ObjectMapper objectMapper, KafkaUserProducer kafkaProducer) {
         this.service = service;
         this.sqsProducer = sqsProducer;
@@ -35,7 +38,9 @@ public class KafkaUserConsumer {
     public void consume(String message) {
         log.info("Received Kafka message for registration: {}", message);
         try {
-            Thread.sleep(120); // Simula processamento assíncrono para gerar curva visível de Lag no Kafka
+            if (delayMs > 0) {
+                Thread.sleep(delayMs); // Simula processamento assíncrono para gerar curva visível de Lag no Kafka
+            }
             UserRegistrationRequest request = objectMapper.readValue(message, UserRegistrationRequest.class);
             
             // Simulate provisioning steps using the Feign clients via OrchestratorService

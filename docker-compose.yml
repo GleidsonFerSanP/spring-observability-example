@@ -67,6 +67,14 @@ services:
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
     depends_on:
       - prometheus
+      - jaeger
+      - loki
+
+  loki:
+    image: grafana/loki:2.9.4
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
 
   postgres:
     image: postgres:15-alpine
