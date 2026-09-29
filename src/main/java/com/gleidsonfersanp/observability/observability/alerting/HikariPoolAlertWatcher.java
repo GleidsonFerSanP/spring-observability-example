@@ -88,4 +88,9 @@ public class HikariPoolAlertWatcher {
             log.trace("Não foi possível inspecionar métricas do HikariCP: {}", e.getMessage());
         }
     }
+
+    public void resetAlertCooldown() {
+        this.lastAlertTimestamp.set(0);
+        this.lastTimeoutCount = 0;
+    }
 }

@@ -5,6 +5,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,9 +18,11 @@ public class DatabaseChaosService {
 
     private static final Logger log = LoggerFactory.getLogger(DatabaseChaosService.class);
     private final TransactionRepository repository;
+    private final DataSource dataSource;
 
-    public DatabaseChaosService(TransactionRepository repository) {
+    public DatabaseChaosService(TransactionRepository repository, DataSource dataSource) {
         this.repository = repository;
+        this.dataSource = dataSource;
     }
 
     public TransactionEntity createTransaction(Double amount) {
@@ -49,17 +54,15 @@ public class DatabaseChaosService {
         return repository.findAll();
     }
     
-    @Transactional
     public void simulatePoolExhaustion(int holdTimeSeconds) {
         log.warn("Starting pool exhaustion simulation. Holding connection for {} seconds...", holdTimeSeconds);
-        // 1. Execute query to acquire connection
-        repository.count();
-        
-        // 2. Sleep while holding the connection open
-        try {
+        try (Connection conn = dataSource.getConnection()) {
+            // Keep connection active and occupied in pool
             Thread.sleep(holdTimeSeconds * 1000L);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } catch (SQLException e) {
+            log.error("Failed to acquire connection during pool exhaustion simulation: {}", e.getMessage());
         }
         log.warn("Releasing connection after pool exhaustion simulation.");
     }
