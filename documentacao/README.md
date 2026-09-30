@@ -81,6 +81,7 @@ flowchart TD
 
 ## 📂 Estrutura da Documentação
 
+- 🎓 [**Tutorial Completo de Adoção & Catálogo de Anotações**](TUTORIAL_COMPLETO_STARTER_E_ANNOTATIONS.md): **Guia principal e prático** cobrindo a adoção em 5 minutos, o papel e atributos de cada anotação (`@TrackFlow`, `@TrackStep`, `@MDC`, `@ObservationTag`, `@FlowDimension`, `@LogLeg`, `@MaskField`), construção de microsserviço de ponta a ponta e testes de telemetria.
 - [**Arquitetura e Fluxos**](README.md): Este documento, contendo visão geral, arquitetura e componentes.
 - [**Guia de Pernas de Execução (Legs) e Mascaramento SpEL**](GUIA_DE_LEGS_E_AUDITORIA_DE_LOGS.md): Arquitetura de rastreamento de saltos (INBOUND/OUTBOUND), auditoria de payloads, mascaramento SpEL com conformidade LGPD/PCI-DSS e ingestão no Grafana Loki.
 - [**Como Metrificar por Stack Tecnológica**](GUIA_METRIFICACAO_DAS_STACKS.md): Manual técnico passo a passo de como metrificar cada stack (MVC, Feign, Resilience4j, Kafka, SQS, HikariCP, Tracing, Alarmística).

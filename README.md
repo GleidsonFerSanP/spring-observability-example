@@ -36,6 +36,7 @@ corporate-observability-parent (root pom)
 
 ## 📚 Documentação Completa
 A documentação detalhada da arquitetura, observabilidade e engenharia de caos está disponível na pasta [`documentacao/`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/README.md):
+- 🎓 [**Tutorial Completo de Adoção & Catálogo de Anotações**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/TUTORIAL_COMPLETO_STARTER_E_ANNOTATIONS.md) — **Guia principal e tutorial prático** cobrindo a adoção em 5 minutos, o papel e atributos de cada anotação (`@TrackFlow`, `@TrackStep`, `@MDC`, `@ObservationTag`, `@FlowDimension`, `@LogLeg`, `@MaskField`), construção de microsserviço de ponta a ponta e testes de telemetria.
 - [**Visão Geral e Arquitetura**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/README.md)
 - [**Especificação Técnica: Engine SPI e Datadog Oficial**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/ESPECIFICACAO_TECNICA_ENGINE_DATADOG_E_VENDOR_NEUTRAL.md)
 - [**Guia de Flow Dimensions, Migração Operacional e Feature Flags**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_FLOW_DIMENSIONS_E_MIGRACAO_FEATURE_FLAGS.md)
@@ -49,6 +50,19 @@ A documentação detalhada da arquitetura, observabilidade e engenharia de caos 
 - [**Guia de Abstração de Vendors e Provedores**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_ABSTRACAO_DE_VENDORS_E_PROVEDORES.md)
 - [**Guia de Testes de Integração, E2E e Validação da Telemetria**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_TESTES_E2E_E_INTEGRACAO.md)
 - [**Cenários de Teste, Caos e Validação**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/CENARIOS_DE_TESTE_E_CAOS.md)
+
+### 🏷️ Catálogo Rápido das Anotações do Starter
+
+| Anotação | Onde Usar | Para Que Serve | O Que Gera nos Bastidores |
+|---|---|---|---|
+| [`@TrackFlow`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/TrackFlow.java) | Métodos Entrypoint (REST, Kafka, SQS) | Delimita o escopo de um fluxo de negócio fim a fim e vigia seu SLA. | Span raiz no Tracing, métrica `observability.flow.duration`, `flow="..."` no MDC. |
+| [`@TrackStep`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/TrackStep.java) | Métodos de integração (Feign, DB, Kafka, SQS) | Fatia a latência interna com tipagem arquitetural [`ComponentType`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/ComponentType.java) (18 tipos). | Span filho no Tracing, métricas nominais vs atribuídas (`observability.flow.component.attributed.duration`). |
+| [`@MDC`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/MDC.java) | Métodos ou Parâmetros | Enriquece o SLF4J MDC declarativamente sem `MDC.put()` / `remove()`. | Contexto de log isolado com stack semantics (anti-leak) em thread pools. |
+| [`@ObservationTag`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/ObservationTag.java) | Métodos ou Bordas Feign | Extrai tags dinâmicas via SpEL (`#result`, `#param`) para métricas e spans. | Dimensões de baixa cardinalidade no TSDB ou atributos de alta cardinalidade no Span. |
+| [`@FlowDimension`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/FlowDimension.java) | Métodos `@TrackFlow` | Anexa variantes de negócio (`variant="v2"`, `tenant`) para canary e migrações. | Fatiamento dimensional de fluxos no Grafana e no Datadog Request Flow Map. |
+| [`@LogLeg`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/LogLeg.java) | Métodos de salto de rede | Registra auditoria forense estruturada da perna (`INBOUND`/`OUTBOUND`). | Eventos JSON estruturados em `AUDIT_LEG_LOGGER` com numeração e status. |
+| [`@MaskField`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/MaskField.java) | Dentro de `@LogLeg(mask = {...})` | Mascara campos sensíveis nos payloads via SpEL antes de gerar log. | Conformidade com LGPD e PCI-DSS usando padrões do [`MaskPattern`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/MaskPattern.java). |
+
 
 ## 📸 Evidências Visuais e Dashboards
 
