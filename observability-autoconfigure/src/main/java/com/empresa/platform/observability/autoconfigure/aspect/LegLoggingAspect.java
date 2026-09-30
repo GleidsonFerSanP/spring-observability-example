@@ -153,6 +153,12 @@ public class LegLoggingAspect {
         if (logLeg != null && !logLeg.target().isBlank()) {
             return logLeg.target();
         }
+        if (joinPoint.getSignature() instanceof MethodSignature methodSignature) {
+            Class<?> declaringType = methodSignature.getDeclaringType();
+            if (declaringType != null && !declaringType.equals(Object.class)) {
+                return declaringType.getSimpleName();
+            }
+        }
         return joinPoint.getTarget().getClass().getSimpleName();
     }
 

@@ -43,9 +43,13 @@ flowchart TD
 ## 2. Tipos e Fases de Legs
 
 ### 2.1 Tipos de Leg (`LegType`)
-- `INBOUND`: Requisições que entram no sistema (Controllers REST, ouvintes de mensageria SQS/Kafka, gRPC endpoints).
-- `OUTBOUND`: Chamadas emitidas pelo sistema para dependências externas (HTTP Clients, banco de dados, produtores de mensageria).
-- `INTERNAL`: Execução de blocos críticos ou subprocessos de negócio dentro do próprio domínio.
+- `INBOUND`: Requisições que entram no sistema (Controllers REST, endpoints gRPC).
+- `OUTBOUND`: Chamadas síncronas emitidas para serviços externos (HTTP Clients via OpenFeign, WebClient, RestTemplate).
+- `CONFIG`: Resolução e carregamento de configurações internas ou remotas, segredos e feature flags (Spring Cloud Config, HashiCorp Vault, Consul, Unleash).
+- `DATABASE`: Persistência, queries e operações transacionais com bancos de dados relacionais ou NoSQL (JPA, JDBC, MongoDB, DynamoDB).
+- `MESSAGING`: Operações de envio (produce) ou consumo (consume) assíncronos em mensageria/streaming (Apache Kafka, RabbitMQ, AWS SQS/SNS).
+- `CACHE`: Leituras, gravações ou invalidações em caches distribuídos ou locais (Redis, Memcached, Caffeine).
+- `INTERNAL`: Execução de blocos críticos ou processamentos pesados em memória dentro do próprio domínio.
 
 ### 2.2 Fases de Leg (`LegPhase`)
 - `REQUEST`: Momento imediatamente anterior ao processamento/disparo. Contém os parâmetros submetidos, headers ou corpo da requisição.
@@ -84,9 +88,9 @@ A anotação `@LogLeg` é declarada nas fronteiras arquiteturais (Controllers, C
 @Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface LogLeg {
-    String target();
+    String target() default "";
     LegType type() default LegType.OUTBOUND;
-    boolean includePayload() default true;
+    boolean includePayload() default false;
     MaskField[] mask() default {};
 }
 ```
@@ -94,8 +98,9 @@ public @interface LogLeg {
 A anotação `@MaskField` define regras granulares via SpEL:
 ```java
 @Retention(RetentionPolicy.RUNTIME)
+@Target({})
 public @interface MaskField {
-    String spel(); // Expressão SpEL
+    String expression(); // Expressão SpEL ou propriedade JSON
     MaskPattern pattern() default MaskPattern.FULL_MASK;
     String customMask() default "";
 }
