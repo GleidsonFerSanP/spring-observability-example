@@ -1,1 +1,3 @@
-org.springframework.boot.env.EnvironmentPostProcessor=com.empresa.platform.observability.autoconfigure.env.ObservabilityEnvironmentPostProcessor
+org.springframework.boot.env.EnvironmentPostProcessor=\
+  com.empresa.platform.observability.autoconfigure.env.ObservabilityEnvironmentPostProcessor,\
+  com.empresa.platform.observability.autoconfigure.logging.ObservabilityLoggingEnvironmentPostProcessor

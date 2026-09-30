@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ============================================================================== -->
+<!-- observability-logback-defaults.xml - Configuração Centralizada da Plataforma   -->
+<!-- ============================================================================== -->
+<included>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- Propriedades do Contexto Spring -->
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="application"/>
+    <springProperty scope="context" name="LOKI_URL" source="observability.logging.loki.url" defaultValue="http://localhost:3100/loki/api/v1/push"/>
+
+    <!-- ======================================================== -->
+    <!--  1. Perfil Local/Dev (!container & !prod)                  -->
+    <!--  Console colorido legível para desenvolvedores com MDC    -->
+    <!-- ======================================================== -->
+    <springProfile name="!container &amp; !prod">
+        <appender name="CONSOLE_SYNC" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} [cid=%X{correlation_id:-none}] [%X{traceId:-},%X{spanId:-}] [flow=%X{flow:-none},step=%X{step:-none}] %m%n%wEx</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <!-- Appender Assíncrono para Console Dev -->
+        <appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+            <appender-ref ref="CONSOLE_SYNC"/>
+            <queueSize>512</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>false</neverBlock>
+            <includeCallerData>false</includeCallerData>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="ASYNC_CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- ======================================================== -->
+    <!--  2. Perfil Nuvem/Container/Prod (container | prod)         -->
+    <!--  Console em formato JSON Estruturado (CloudWatch/K8s/Otel) -->
+    <!-- ======================================================== -->
+    <springProfile name="container | prod">
+        <appender name="JSON_CONSOLE_SYNC" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX,UTC}","app":"${APP_NAME}","level":"%p","thread":"%t","logger":"%logger","correlation_id":"%X{correlation_id:-none}","traceId":"%X{traceId:-}","spanId":"%X{spanId:-}","flow":"%X{flow:-}","step":"%X{step:-}","step_type":"%X{step.type:-}","leg_number":"%X{leg_number:-}","leg_parent":"%X{leg_parent:-}","leg_type":"%X{leg_type:-}","leg_phase":"%X{leg_phase:-}","leg_target":"%X{leg_target:-}","leg_duration_ms":"%X{leg_duration_ms:-}","leg_status":"%X{leg_status:-}","message":"%replace(%m){'[\r\n\t]', ' '}","exception":"%replace(%wEx){'[\r\n\t]', ' '}"}%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <!-- Appender Assíncrono para JSON Prod -->
+        <appender name="ASYNC_JSON_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+            <appender-ref ref="JSON_CONSOLE_SYNC"/>
+            <queueSize>1024</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>false</neverBlock>
+            <includeCallerData>false</includeCallerData>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="ASYNC_JSON_CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- ======================================================== -->
+    <!--  3. Níveis de Log Padronizados                            -->
+    <!-- ======================================================== -->
+    <logger name="org.springframework.web" level="INFO"/>
+    <logger name="org.apache.kafka" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+    <logger name="io.awspring.cloud.sqs" level="INFO"/>
+    <logger name="com.empresa.platform.observability" level="INFO"/>
+    <logger name="AUDIT_LEG_LOGGER" level="INFO"/>
+</included>

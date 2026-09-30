@@ -7,6 +7,7 @@ import com.empresa.platform.observability.autoconfigure.alerting.LogAlertNotifie
 import com.empresa.platform.observability.autoconfigure.alerting.WebhookAlertNotifier;
 import com.empresa.platform.observability.autoconfigure.aspect.FlowTrackingAspect;
 import com.empresa.platform.observability.autoconfigure.aspect.LegLoggingAspect;
+import com.empresa.platform.observability.autoconfigure.aspect.MdcAspect;
 import com.empresa.platform.observability.autoconfigure.aspect.SpelObservationAspect;
 import com.empresa.platform.observability.autoconfigure.detector.TracingRuntimeDetector;
 import com.empresa.platform.observability.autoconfigure.report.ObservabilityStartupReporter;
@@ -127,6 +128,13 @@ public class ObservabilityAutoConfiguration {
     @ConditionalOnProperty(prefix = "observability.spel-observation", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SpelObservationAspect spelObservationAspect(@Autowired(required = false) ObservationRegistry observationRegistry) {
         return new SpelObservationAspect(observationRegistry != null ? observationRegistry : ObservationRegistry.NOOP);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "observability.mdc", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public MdcAspect mdcAspect() {
+        return new MdcAspect();
     }
 
     @Bean

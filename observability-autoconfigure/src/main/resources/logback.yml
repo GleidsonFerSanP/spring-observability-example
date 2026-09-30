@@ -1,0 +1,40 @@
+# ==============================================================================
+# logback.yml - Configuração Centralizada de Logging e Logback da Plataforma
+# ==============================================================================
+# Este arquivo padroniza os layouts de log, padrões de console com MDC,
+# formato JSON estruturado para contêineres/Kubernetes e níveis de log padrão.
+# ==============================================================================
+
+logging:
+  pattern:
+    # Padrão colorido legível para desenvolvimento local com Correlation ID, Traces e Flow/Step
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} [cid=%X{correlation_id:-none}] [%X{traceId:-},%X{spanId:-}] [flow=%X{flow:-none},step=%X{step:-none}] %m%n%wEx"
+    dateformat: "yyyy-MM-dd HH:mm:ss.SSS"
+  level:
+    root: INFO
+    # Redução de ruído de frameworks e drivers
+    org.springframework.web: INFO
+    org.apache.kafka: WARN
+    org.hibernate: WARN
+    com.zaxxer.hikari: INFO
+    io.awspring.cloud.sqs: INFO
+    # Starter de observabilidade corporativa
+    com.empresa.platform.observability: INFO
+    AUDIT_LEG_LOGGER: INFO
+
+observability:
+  logging:
+    format: AUTO # AUTO (detecta container vs local), CONSOLE ou JSON
+    loki:
+      enabled: false
+      url: "http://localhost:3100/loki/api/v1/push"
+      batch-size: 100
+      send-interval-ms: 1000
+    json:
+      timestamp-format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+      include-mdc: true
+      include-caller-data: false
+    async:
+      queue-size: 512
+      discarding-threshold: 0
+      never-block: false
