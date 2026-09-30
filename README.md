@@ -1,13 +1,31 @@
 # Observability & Resilience Example
 Um projeto completo demonstrando microsserviços integrados com Spring Boot 3, Kafka, SQS (LocalStack), WireMock, Micrometer, Resilience4j, Prometheus, Grafana e Jaeger!
 
-## 🚀 Adoção do Starter Corporativo (`observability-spring-boot-starter`)
+## 🏛️ Arquitetura Multi-Módulo do Starter Corporativo
 
-Este projeto foi migrado para utilizar o [**observability-spring-boot-starter**](https://github.com/GleidsonFerSanP/observability-spring-boot-starter), um starter corporativo Spring Boot 3 reutilizável, modular e desacoplado.
+O repositório é organizado no formato Maven Multi-Module, separando estritamente os contratos de API, o core do domínio de telemetria, as auto-configurações do Spring Boot, o starter agregador, os testes de conformidade de topologia e a aplicação de demonstração:
 
-Toda a infraestrutura transversal de telemetria — incluindo interceptação de fluxos (`@TrackFlow`), etapas (`@TrackStep`), tags dinâmicas com SpEL (`@ObservationTag`), auditoria de pernas (`@LegAudit`), cálculo autoritativo de lag Kafka/SQS, mascaramento LGPD/PCI e filtros de Correlation ID (`cid`) — é provida automaticamente via auto-configuração do starter, deixando o código do microsserviço **100% focado no domínio de negócio (Zero Boilerplate)**.
+```text
+corporate-observability-parent (root pom)
+├── observability-api             # Contratos puros, anotações (@TrackFlow, @TrackStep, @FlowDimension, @LogLeg) sem dependências externas
+├── observability-core            # Domínio de observabilidade (FlowSemanticContext, FlowVariant, LatencyAttribution, CardinalityPolicy, OpenTelemetry API pura)
+├── observability-autoconfigure   # Auto-configurações Spring Boot 3, EnvironmentPostProcessor, TracingRuntimeDetector, Endpoints Actuator
+├── observability-spring-boot-starter # Starter corporativo plug-and-play para consumo pelas aplicações
+├── observability-test            # Test Harness e Matriz de Conformidade (Single Producer, detecção de conflitos, Datadog/Prometheus)
+├── observability-legacy-compat   # Módulo ponte de compatibilidade para transição de legados
+└── observability-demo            # Aplicação laboratório (user-orchestrator) com REST, Feign, Kafka, SQS, Circuit Breaker, WireMock e BD
+```
 
-### Coordenadas Maven
+### 🎯 Políticas Arquiteturais Fundamentais
+1. **Single Producer Per Signal**: O starter previne conflitos de agentes (`dd-java-agent` vs `opentelemetry-javaagent`) e duplicação de métricas. O `TracingRuntimeDetector` e o `ObservabilityTopologyValidator` realizam validação fail-fast no startup.
+2. **OpenTelemetry API Pura no Core**: O starter depende exclusivamente de `opentelemetry-api` (sem SDK e sem exporters OTLP), permitindo coexistência limpa com o `dd-java-agent` através de `DD_TRACE_OTEL_ENABLED=true`.
+3. **Seleção de Perfis Nativos**:
+   - `observability.profile: datadog` (Padrão Corporativo): Exportação para Datadog ativa, `management.tracing.enabled=false` para evitar duplicidade com o Java Agent.
+   - `observability.profile: prometheus`: Desabilita Datadog e ativa `PrometheusMeterRegistry` e Micrometer Tracing.
+   - `observability.metrics.allow-dual-export: true`: Autorização explícita obrigatória para períodos transitórios de migração dual.
+4. **Proteção de Cardinalidade**: O `CardinalityPolicy` filtra automaticamente identificadores de alta cardinalidade (`userId`, `orderId`, `traceId`, `cpf`, `token`) evitando explosão de métricas nos backends analíticos.
+
+### Coordenadas Maven para Aplicações Clientes
 ```xml
 <dependency>
     <groupId>com.empresa.platform</groupId>
@@ -15,18 +33,6 @@ Toda a infraestrutura transversal de telemetria — incluindo interceptação de
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ```
-
-### Principais Recursos Fornecidos pelo Starter:
-- **Arquitetura Hexagonal & Engine SPI**: Abstração `ObservabilityEngine` que desacopla a aplicação do backend de telemetria. Suporta chaveamento transparente entre `micrometer` (OpenTelemetry/Prometheus/Jaeger) e `datadog` (Datadog Trace Agent nativo).
-- **Flow Dimensions & Migração via Feature Flags**: Suporte nativo a variantes de fluxo (`variant="legacy"|"new"`) e integração não-intrusiva com frameworks de Feature Flags (Togglz, Unleash, LaunchDarkly) via `FeatureEvaluationListener`, permitindo análise A/B e decomposição de latência sem contaminação do código de negócio.
-- **Rastreabilidade Multicamada (Legs)**: Auditoria e metrificação de pernas de rede (`INBOUND`/`OUTBOUND`) para HTTP Feign, Kafka, SQS e JDBC.
-- **Documentação Técnica do Starter**:
-  - [Visão Geral e Arquitetura do Starter](https://github.com/GleidsonFerSanP/observability-spring-boot-starter/blob/master/docs/ARCHITECTURE.md)
-  - [Guia de Capacidades do Starter](https://github.com/GleidsonFerSanP/observability-spring-boot-starter/blob/master/docs/CAPABILITIES_GUIDE.md)
-  - [Referência de Configuração YAML](https://github.com/GleidsonFerSanP/observability-spring-boot-starter/blob/master/docs/CONFIGURATION_REFERENCE.md)
-  - [Catálogo de Schemas e Telemetria](https://github.com/GleidsonFerSanP/observability-spring-boot-starter/blob/master/docs/TELEMETRY_SCHEMA.md)
-
----
 
 ## 📚 Documentação Completa
 A documentação detalhada da arquitetura, observabilidade e engenharia de caos está disponível na pasta [`documentacao/`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/README.md):

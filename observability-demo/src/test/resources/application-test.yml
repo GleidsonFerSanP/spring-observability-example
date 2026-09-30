@@ -1,0 +1,55 @@
+server:
+  port: 0
+
+observability:
+  profile: prometheus
+  observation-handler:
+    enabled: true
+
+app:
+  integrations:
+    customer:
+      url: http://localhost:${wiremock.port:8081}
+    billing:
+      url: http://localhost:${wiremock.port:8081}
+    notification:
+      url: http://localhost:${wiremock.port:8081}
+  sqs:
+    audit-consumer:
+      delay-ms: 0
+  kafka:
+    user-consumer:
+      delay-ms: 0
+  observability:
+    alerting:
+      enabled: true
+      defaultStepSlaMs: 500
+      defaultFlowSlaMs: 1000
+      stepSlaMs:
+        "[API Customer (GET /customers/{userId})]": 500
+        "[API Billing (GET /billing/accounts/{userId})]": 500
+        "[API Notificação (POST /notifications)]": 500
+      flowSlaMs:
+        "[GET /api/v1/orchestrator/users/{userId}]": 1000
+
+sqs:
+  metrics:
+    poll-delay: 60000
+
+spring:
+  kafka:
+    listener:
+      auto-startup: false
+    consumer:
+      auto-offset-reset: latest
+      group-id: test-user-orchestrator-group
+  cloud:
+    aws:
+      sqs:
+        listener:
+          auto-startup: false
+
+logging:
+  level:
+    root: INFO
+    com.gleidsonfersanp.observability: DEBUG

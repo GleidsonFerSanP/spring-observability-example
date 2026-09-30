@@ -1,0 +1,13 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPattern": "/billing/accounts/error"
+  },
+  "response": {
+    "status": 500,
+    "jsonBody": {
+      "error": "Internal Server Error"
+    }
+  }
+}

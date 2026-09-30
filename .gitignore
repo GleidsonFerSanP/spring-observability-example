@@ -53,3 +53,5 @@ out/
 # Environment / local configs
 .env
 .env.local
+.workplane/
+

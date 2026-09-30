@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPattern": "/billing/accounts/.*"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "plan": "Premium",
+      "status": "Active",
+      "billingType": "MONTHLY"
+    }
+  }
+}
