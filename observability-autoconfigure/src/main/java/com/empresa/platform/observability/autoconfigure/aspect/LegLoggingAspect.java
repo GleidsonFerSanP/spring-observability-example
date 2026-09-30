@@ -33,16 +33,18 @@ public class LegLoggingAspect {
         this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
     }
 
-    @Around("@annotation(logLeg) || @within(logLeg)")
-    public Object traceLeg(ProceedingJoinPoint joinPoint, LogLeg logLeg) throws Throwable {
+    @Around("@annotation(com.empresa.platform.observability.core.annotation.LogLeg) || @within(com.empresa.platform.observability.core.annotation.LogLeg)")
+    public Object traceLeg(ProceedingJoinPoint joinPoint) throws Throwable {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Method method = signature.getMethod();
 
-        if (logLeg == null) {
-            logLeg = method.getAnnotation(LogLeg.class);
-            if (logLeg == null) {
-                logLeg = joinPoint.getTarget().getClass().getAnnotation(LogLeg.class);
-            }
+        LogLeg logLeg = org.springframework.core.annotation.AnnotationUtils.findAnnotation(method, LogLeg.class);
+        if (logLeg == null && joinPoint.getTarget() != null) {
+            Method targetMethod = org.springframework.aop.support.AopUtils.getMostSpecificMethod(method, joinPoint.getTarget().getClass());
+            logLeg = org.springframework.core.annotation.AnnotationUtils.findAnnotation(targetMethod, LogLeg.class);
+        }
+        if (logLeg == null && joinPoint.getTarget() != null) {
+            logLeg = org.springframework.core.annotation.AnnotationUtils.findAnnotation(joinPoint.getTarget().getClass(), LogLeg.class);
         }
 
         String target = resolveTarget(logLeg, joinPoint);
