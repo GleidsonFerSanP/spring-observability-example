@@ -8,6 +8,7 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.ExpressionParser;
@@ -45,6 +46,9 @@ public class MdcAspect {
     public Object processMdcTags(ProceedingJoinPoint joinPoint) throws Throwable {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Method method = signature.getMethod();
+        if (joinPoint.getTarget() != null) {
+            method = AopUtils.getMostSpecificMethod(method, joinPoint.getTarget().getClass());
+        }
         Object[] args = joinPoint.getArgs();
         String[] paramNames = signature.getParameterNames();
 
@@ -126,10 +130,11 @@ public class MdcAspect {
         try {
             String value;
             String expr = mdcAnn.expression();
-            if (expr == null || expr.isBlank()) {
-                value = argVal != null ? String.valueOf(argVal) : null;
-            } else {
+            if (expr != null && !expr.isBlank()) {
                 value = parser.parseExpression(expr).getValue(context, String.class);
+            } else {
+                String staticVal = resolveStaticValue(mdcAnn);
+                value = staticVal != null ? staticVal : (argVal != null ? String.valueOf(argVal) : null);
             }
 
             if (value != null) {
@@ -147,13 +152,19 @@ public class MdcAspect {
                                   MDC mdcAnn,
                                   Map<String, String> previousMdcValues) {
         String key = resolveKey(mdcAnn);
-        String expr = mdcAnn.expression();
-        if (key == null || key.isBlank() || expr == null || expr.isBlank()) {
+        if (key == null || key.isBlank()) {
             return;
         }
 
+        String expr = mdcAnn.expression();
         try {
-            String value = parser.parseExpression(expr).getValue(context, String.class);
+            String value = null;
+            if (expr != null && !expr.isBlank()) {
+                value = parser.parseExpression(expr).getValue(context, String.class);
+            } else {
+                value = resolveStaticValue(mdcAnn);
+            }
+
             if (value != null) {
                 if (!previousMdcValues.containsKey(key)) {
                     previousMdcValues.put(key, org.slf4j.MDC.get(key));
@@ -173,5 +184,15 @@ public class MdcAspect {
             return mdcAnn.name();
         }
         return mdcAnn.value();
+    }
+
+    private String resolveStaticValue(MDC mdcAnn) {
+        if ((mdcAnn.key() != null && !mdcAnn.key().isBlank()) ||
+            (mdcAnn.name() != null && !mdcAnn.name().isBlank())) {
+            if (mdcAnn.value() != null && !mdcAnn.value().isBlank()) {
+                return mdcAnn.value();
+            }
+        }
+        return null;
     }
 }

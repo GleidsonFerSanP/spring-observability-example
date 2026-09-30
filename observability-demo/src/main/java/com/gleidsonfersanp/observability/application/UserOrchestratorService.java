@@ -13,7 +13,10 @@ import com.gleidsonfersanp.observability.integration.CustomerClient;
 import com.gleidsonfersanp.observability.integration.NotificationClient;
 import com.gleidsonfersanp.observability.integration.messaging.KafkaUserProducer;
 import com.gleidsonfersanp.observability.integration.messaging.SqsUserProducer;
+import com.empresa.platform.observability.core.annotation.ComponentType;
+import com.empresa.platform.observability.core.annotation.MDC;
 import com.empresa.platform.observability.core.annotation.ObservationTag;
+import com.empresa.platform.observability.core.annotation.TrackStep;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.micrometer.observation.annotation.Observed;
 import org.slf4j.Logger;
@@ -52,8 +55,10 @@ public class UserOrchestratorService {
     }
 
     @Observed(name = "user.registration.initiate", contextualName = "initiate-async-registration")
-    @ObservationTag(key = "userId", expression = "#request.userId()", highCardinality = true)
+    @TrackStep(name = "initiate-async-registration", type = ComponentType.BUSINESS)
+    @MDC(key = "userId", expression = "#request.userId")
     public void initiateUserRegistration(UserRegistrationRequest request) {
+        log.info("Initiating async registration for user: {}", request.userId());
         kafkaProducer.publishUserRegistration(request);
     }
 
@@ -62,7 +67,9 @@ public class UserOrchestratorService {
     @ObservationTag(key = "userId", expression = "#userId", highCardinality = true)
     @ObservationTag(key = "flow", expression = "'provisioning'")
     @ObservationTag(key = "customer_plan", expression = "#result?.billing()?.plan()")
+    @MDC(key = "flowType", value = "orchestrated-provisioning")
     public UserProfile fetchAndProvisionUserProfile(String userId) {
+        log.info("Executing provisionUserProfile for user: {}", userId);
         if (featureToggleService.isEnabled("user-provisioning-v2")) {
             return provisionUserProfileV2(userId);
         }
