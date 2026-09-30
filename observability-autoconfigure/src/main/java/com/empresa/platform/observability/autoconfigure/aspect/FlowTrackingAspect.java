@@ -26,6 +26,7 @@ import org.springframework.core.annotation.Order;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -80,6 +81,10 @@ public class FlowTrackingAspect {
             flowName = joinPoint.getSignature().toShortString();
         }
 
+        String previousFlowMdc = MDC.get("flow");
+        MDC.put("flow", flowName);
+        Map<String, String> previousDimensionsMdc = new HashMap<>();
+
         FlowContext.start(flowName);
 
         // Process parameter-level @FlowDimension annotations
@@ -99,6 +104,12 @@ public class FlowTrackingAspect {
                                 if (current != null) {
                                     current.putDimension(key, val);
                                 }
+                            }
+                            if (fd.mdc()) {
+                                if (!previousDimensionsMdc.containsKey(key)) {
+                                    previousDimensionsMdc.put(key, MDC.get(key));
+                                }
+                                MDC.put(key, val);
                             }
                         }
                     }
@@ -139,6 +150,20 @@ public class FlowTrackingAspect {
             FlowExecution execution = FlowContext.getCurrentExecution();
             observabilityEngine.completeFlow(execution, flowScope);
 
+            // Clean up and restore MDC
+            for (Map.Entry<String, String> entry : previousDimensionsMdc.entrySet()) {
+                if (entry.getValue() != null) {
+                    MDC.put(entry.getKey(), entry.getValue());
+                } else {
+                    MDC.remove(entry.getKey());
+                }
+            }
+            if (previousFlowMdc != null) {
+                MDC.put("flow", previousFlowMdc);
+            } else {
+                MDC.remove("flow");
+            }
+
             MDC.remove("variant");
             MDC.remove("feature.name");
             MDC.remove("feature.variant");
@@ -171,6 +196,38 @@ public class FlowTrackingAspect {
         }
         String currentFlow = FlowContext.getCurrentFlowName();
 
+        String previousStepMdc = MDC.get("step");
+        String previousStepTypeMdc = MDC.get("step.type");
+        MDC.put("step", stepName);
+        MDC.put("step.type", trackStep.type().name());
+        Map<String, String> previousStepDimensionsMdc = new HashMap<>();
+
+        // Process parameter-level @FlowDimension annotations in @TrackStep
+        if (joinPoint.getSignature() instanceof MethodSignature signature) {
+            Method method = signature.getMethod();
+            Annotation[][] paramAnnotations = method.getParameterAnnotations();
+            Object[] args = joinPoint.getArgs();
+            for (int i = 0; i < paramAnnotations.length; i++) {
+                for (Annotation ann : paramAnnotations[i]) {
+                    if (ann instanceof FlowDimension fd) {
+                        String key = (fd.key() != null && !fd.key().isBlank()) ? fd.key() : fd.name();
+                        if (key != null && !key.isBlank() && i < args.length && args[i] != null) {
+                            String val = String.valueOf(args[i]);
+                            if (CardinalityPolicy.isAllowed(key)) {
+                                FlowContext.setDimension(key, val);
+                            }
+                            if (fd.mdc()) {
+                                if (!previousStepDimensionsMdc.containsKey(key)) {
+                                    previousStepDimensionsMdc.put(key, MDC.get(key));
+                                }
+                                MDC.put(key, val);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         StepScope stepScope = observabilityEngine.startStep(currentFlow, stepName, trackStep.type().name(), FlowContext.getCurrentDimensions());
 
         try {
@@ -201,6 +258,25 @@ public class FlowTrackingAspect {
         } finally {
             long duration = System.nanoTime() - startNanos;
             observabilityEngine.completeStep(currentFlow, stepName, trackStep.type().name(), duration, FlowContext.getCurrentDimensions(), stepScope);
+
+            // Clean up and restore MDC for step and step dimensions
+            for (Map.Entry<String, String> entry : previousStepDimensionsMdc.entrySet()) {
+                if (entry.getValue() != null) {
+                    MDC.put(entry.getKey(), entry.getValue());
+                } else {
+                    MDC.remove(entry.getKey());
+                }
+            }
+            if (previousStepMdc != null) {
+                MDC.put("step", previousStepMdc);
+            } else {
+                MDC.remove("step");
+            }
+            if (previousStepTypeMdc != null) {
+                MDC.put("step.type", previousStepTypeMdc);
+            } else {
+                MDC.remove("step.type");
+            }
 
             long stepDurationMs = TimeUnit.NANOSECONDS.toMillis(duration);
             long stepThresholdMs = alertingProperties.getThresholdForStep(stepName);

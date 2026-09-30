@@ -10,4 +10,5 @@ public @interface FlowDimension {
     String name() default "";
     String value() default "";
     String expression() default "";
+    boolean mdc() default true;
 }
