@@ -71,6 +71,7 @@ Verificamos que as tags de negócio injetadas via [`@ObservationTag`](file:///Us
 
 | Classe de Teste | Tipo | Escopo e Experimentos Provados |
 | :--- | :--- | :--- |
+| [`FlowTelemetryInspectionExampleIntegrationTest`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-demo/src/test/java/com/gleidsonfersanp/observability/FlowTelemetryInspectionExampleIntegrationTest.java) | **Exemplo / Inspeção de Telemetria** | **Suíte Canônica de Referência**: Demonstração detalhada de como obter e inspecionar via `MeterRegistry` todas as métricas propagadas por um `@TrackFlow` (`observability.flow.duration`, `observability.flow.component.work.duration`, `component.attributed.duration`, `unattributed.duration`), todos os logs estruturados de pernas (`AUDIT_LEG_LOGGER`, sequência INBOUND/OUTBOUND, metadados no MDC, mascaramento LGPD de email e plano via `@MaskField`) e o enriquecimento contextual de `@MDC` com validação de Stack Semantics anti-leakage. |
 | [`UserOrchestratorE2EObservabilityIntegrationTest`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-demo/src/test/java/com/gleidsonfersanp/observability/UserOrchestratorE2EObservabilityIntegrationTest.java) | **E2E / Integração** | Jornada síncrona completa (`GET /users/{userId}`), stubs de rede WireMock, sequência de 5 pernas de log, mascaramento de email/plano, decomposição de slices em 4 etapas e tags SpEL. |
 | [`MdcEnrichmentIntegrationTest`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-demo/src/test/java/com/gleidsonfersanp/observability/MdcEnrichmentIntegrationTest.java) | **E2E / Integração** | Validação do enriquecimento declarativo de logs com `@MDC` e `@MDCs`: extração por parâmetro `@PathVariable @MDC("userId")`, extração SpEL dinâmica (`#request.userId`), valores estáticos (`channel=web`, `flowType=orchestrated-provisioning`), stack semantics em requisições REST via MockMvc e asserção de zero vazamento de contexto na thread via Logback `ListAppender`. |
 | [`CorrelationAndStandardLogbackIntegrationTest`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-demo/src/test/java/com/gleidsonfersanp/observability/CorrelationAndStandardLogbackIntegrationTest.java) | **Integração** | Propagação de Correlation ID (`X-Correlation-Id`), injeção transparente de headers nos clientes Feign e formatação padronizada de logs. |
@@ -97,7 +98,7 @@ mvn test
 ```text
 [INFO] Results:
 [INFO] 
-[INFO] Tests run: 34, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 38, Failures: 0, Errors: 0, Skipped: 0
 [INFO] 
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD SUCCESS

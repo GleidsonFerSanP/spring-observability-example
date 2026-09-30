@@ -61,12 +61,15 @@ A documentação detalhada da arquitetura, observabilidade e engenharia de caos 
 | ![Loki Legs Stream](documentacao/evidencias/03-grafana-loki-legs-audit.png) | ![Loki Explore](documentacao/evidencias/04-grafana-loki-explore.png) |
 
 ## 🧪 Testes Automatizados (Stubs sobre Mocks & Validação da Telemetria)
-A aplicação conta com uma suíte abrangente de **34 testes de integração e ponta a ponta (E2E)** que comprovam toda a telemetria (Logs, Métricas, Traces, SpEL, Feature Flags, Flow Dimensions, Topologia e Enriquecimento Declarativo de MDC) sem necessidade de mocks:
+A aplicação conta com uma suíte abrangente de **38 testes de integração e ponta a ponta (E2E)** que comprovam toda a telemetria (Logs, Métricas, Traces, SpEL, Feature Flags, Flow Dimensions, Topologia, Enriquecimento Declarativo de MDC e Inspeção Canônica de Telemetria) sem necessidade de mocks:
 ```bash
-# Executar todos os 34 testes em todos os módulos
+# Executar todos os 38 testes em todos os módulos
 mvn test
 
-# Executar suíte específica (ex: E2E Síncrono)
+# Executar suíte canônica de inspeção de Métricas (@TrackFlow), Legs (@LogLeg) e MDCs (@MDC)
+mvn test -Dtest=FlowTelemetryInspectionExampleIntegrationTest
+
+# Executar suíte E2E Síncrono
 mvn test -Dtest=UserOrchestratorE2EObservabilityIntegrationTest
 
 # Executar suíte de Correlation ID e Logback Padronizado
