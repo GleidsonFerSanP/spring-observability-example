@@ -127,6 +127,36 @@ class SpelObservationAspectIntegrationTest {
         assertThat(stoppedContext.getError()).isInstanceOf(IllegalStateException.class);
     }
 
+    @Test
+    @DisplayName("Cenário 4: Enriquecimento via valores literais fixos (value), precedência e parâmetros anotados")
+    void testFixedValueTagsAndParameterTags() {
+        String res = sampleObservedService.executeFixedOperations("dc-sp-1");
+        assertThat(res).isEqualTo("OK-dc-sp-1");
+
+        Observation.Context stoppedContext = observationRecordingHandler.findContextByName("sample.customer.fixed");
+        assertThat(stoppedContext).isNotNull();
+
+        // 1. Tag de valor fixo messaging.system
+        KeyValue messagingTag = findLowCardinalityTag(stoppedContext, "messaging.system");
+        assertThat(messagingTag).isNotNull();
+        assertThat(messagingTag.getValue()).isEqualTo("kafka");
+
+        // 2. Tag de valor fixo client.name
+        KeyValue clientTag = findLowCardinalityTag(stoppedContext, "client.name");
+        assertThat(clientTag).isNotNull();
+        assertThat(clientTag.getValue()).isEqualTo("billing-service");
+
+        // 3. Precedência de value sobre expression
+        KeyValue providerTag = findLowCardinalityTag(stoppedContext, "provider");
+        assertThat(providerTag).isNotNull();
+        assertThat(providerTag.getValue()).isEqualTo("cielo");
+
+        // 4. Parâmetro anotado com @ObservationTag
+        KeyValue dcTag = findLowCardinalityTag(stoppedContext, "datacenter");
+        assertThat(dcTag).isNotNull();
+        assertThat(dcTag.getValue()).isEqualTo("dc-sp-1");
+    }
+
     private KeyValue findLowCardinalityTag(Observation.Context context, String key) {
         return StreamSupport.stream(context.getLowCardinalityKeyValues().spliterator(), false)
                 .filter(kv -> kv.getKey().equals(key))
@@ -208,6 +238,14 @@ class SpelObservationAspectIntegrationTest {
         @ObservationTag(key = "customer_name", expression = "#result?.name()")
         public CustomerDto failingMethod(String userId) {
             throw new IllegalStateException("Simulated business failure");
+        }
+
+        @Observed(name = "sample.customer.fixed", contextualName = "sample-fixed")
+        @ObservationTag(key = "messaging.system", value = "kafka")
+        @ObservationTag(key = "client.name", value = "billing-service")
+        @ObservationTag(key = "provider", value = "cielo", expression = "'rede'")
+        public String executeFixedOperations(@ObservationTag(key = "datacenter") String dc) {
+            return "OK-" + dc;
         }
     }
 }

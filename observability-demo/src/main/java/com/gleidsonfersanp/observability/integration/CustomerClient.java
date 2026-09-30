@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 @FeignClient(name = "customer-service", url = "${app.integrations.customer.url}")
 public interface CustomerClient {
 
-    @ObservationTag(key = "client", expression = "'customer'")
+    @ObservationTag(key = "client", value = "customer")
     @TrackStep("API Customer (GET /customers/{userId})")
     @LogLeg(
         target = "customer-service",

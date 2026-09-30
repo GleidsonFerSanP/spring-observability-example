@@ -27,8 +27,8 @@ public class KafkaUserProducer {
     }
 
     @Observed(name = "messaging.produce", contextualName = "kafka-registration-produce")
-    @ObservationTag(key = "messaging.system", expression = "'kafka'")
-    @ObservationTag(key = "topic", expression = "'user-registration-topic'")
+    @ObservationTag(key = "messaging.system", value = "kafka")
+    @ObservationTag(key = "topic", value = "user-registration-topic")
     @TrackStep("Publicação Kafka (user-registration-topic)")
     public void publishUserRegistration(UserRegistrationRequest request) {
         try {
@@ -46,8 +46,8 @@ public class KafkaUserProducer {
     }
 
     @Observed(name = "messaging.produce", contextualName = "kafka-billing-produce")
-    @ObservationTag(key = "messaging.system", expression = "'kafka'")
-    @ObservationTag(key = "topic", expression = "'billing-events-topic'")
+    @ObservationTag(key = "messaging.system", value = "kafka")
+    @ObservationTag(key = "topic", value = "billing-events-topic")
     @TrackStep("Publicação Kafka (billing-events-topic)")
     public void publishBillingEvent(String userId, String plan) {
         log.info("Publishing billing event to Kafka: {} - {}", userId, plan);

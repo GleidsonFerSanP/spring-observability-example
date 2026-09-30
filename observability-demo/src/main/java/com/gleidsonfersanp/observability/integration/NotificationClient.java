@@ -15,7 +15,7 @@ import java.util.Map;
 @FeignClient(name = "notification-service", url = "${app.integrations.notification.url}")
 public interface NotificationClient {
 
-    @ObservationTag(key = "client", expression = "'notification'")
+    @ObservationTag(key = "client", value = "notification")
     @TrackStep("API Notificação (POST /notifications)")
     @LogLeg(
         target = "notification-service",

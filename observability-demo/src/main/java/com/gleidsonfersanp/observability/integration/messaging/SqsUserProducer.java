@@ -20,8 +20,8 @@ public class SqsUserProducer {
     }
 
     @Observed(name = "messaging.produce", contextualName = "sqs-user-audit-produce")
-    @ObservationTag(key = "messaging.system", expression = "'sqs'")
-    @ObservationTag(key = "queue", expression = "'user-audit-queue'")
+    @ObservationTag(key = "messaging.system", value = "sqs")
+    @ObservationTag(key = "queue", value = "user-audit-queue")
     @TrackStep("Publicação SQS (user-audit-queue)")
     public void publishUserAudit(String action, String userId, String details) {
         String payload = String.format("[%s] User: %s - %s", action, userId, details);
@@ -33,8 +33,8 @@ public class SqsUserProducer {
     }
 
     @Observed(name = "messaging.produce", contextualName = "sqs-welcome-produce")
-    @ObservationTag(key = "messaging.system", expression = "'sqs'")
-    @ObservationTag(key = "queue", expression = "'welcome-email-queue'")
+    @ObservationTag(key = "messaging.system", value = "sqs")
+    @ObservationTag(key = "queue", value = "welcome-email-queue")
     @TrackStep("Publicação SQS (welcome-email-queue)")
     public void publishWelcomeEmail(String userId) {
         log.info("Publishing welcome email event to SQS: {}", userId);

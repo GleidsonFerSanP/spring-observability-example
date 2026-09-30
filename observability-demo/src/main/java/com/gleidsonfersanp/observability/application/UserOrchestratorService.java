@@ -65,7 +65,7 @@ public class UserOrchestratorService {
     @CircuitBreaker(name = "orchestrator", fallbackMethod = "orchestratorFallback")
     @Observed(name = "user.profile.provision", contextualName = "provision-user-profile")
     @ObservationTag(key = "userId", expression = "#userId", highCardinality = true)
-    @ObservationTag(key = "flow", expression = "'provisioning'")
+    @ObservationTag(key = "flow", value = "provisioning")
     @ObservationTag(key = "customer_plan", expression = "#result?.billing()?.plan()")
     @MDC(key = "flowType", value = "orchestrated-provisioning")
     public UserProfile fetchAndProvisionUserProfile(String userId) {

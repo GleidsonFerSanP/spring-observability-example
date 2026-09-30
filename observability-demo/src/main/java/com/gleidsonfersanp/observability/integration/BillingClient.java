@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 @FeignClient(name = "billing-service", url = "${app.integrations.billing.url}")
 public interface BillingClient {
 
-    @ObservationTag(key = "client", expression = "'billing'")
+    @ObservationTag(key = "client", value = "billing")
     @ObservationTag(key = "billing_type", expression = "#result?.billingType()?.name()")
     @TrackStep("API Billing (GET /billing/accounts/{userId})")
     @LogLeg(
