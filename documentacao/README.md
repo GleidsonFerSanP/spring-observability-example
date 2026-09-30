@@ -87,13 +87,14 @@ flowchart TD
 - [**Catálogo de Métricas e Queries PromQL**](CATALOGO_DE_METRICAS_E_QUERIES_DASHBOARD.md): Referência exaustiva de todas as formas customizadas de metrificar e as 20 consultas do Dashboard Grafana (Prometheus & Loki).
 - [**Guia de Alarmística, SLAs e Incidentes**](GUIA_DE_ALARMISTICA_E_SLAS.md): Arquitetura de alarmística não-intrusiva em 2 camadas, interceptação de disjuntores, SLA Guard e Prometheus alerts.
 - [**Observabilidade e Métricas**](OBSERVABILIDADE_E_METRICAS.md): Explicação do Aspecto SpEL, tags customizadas, rastreamento de fatias por entrypoint, queries PromQL e estrutura do painel Grafana.
-- [**Registro de Decisões Arquiteturais (ADRs)**](DECISOES_ARQUITETURAIS_ADR.md): Racional detalhado de todas as 13 decisões tomadas, problemas, soluções e trade-offs.
+- [**Registro de Decisões Arquiteturais (ADRs)**](DECISOES_ARQUITETURAIS_ADR.md): Racional detalhado de todas as 14 decisões tomadas (incluindo ADR 14: Starter Multi-Módulo, Single-Producer Per Signal e OpenTelemetry API Pura).
 - [**Guia de Testes de Integração, E2E e Validação da Telemetria**](GUIA_DE_TESTES_E2E_E_INTEGRACAO.md): Metodologia de Stubs sobre Mocks, asserção da tríade de telemetria (Logs, Métricas e Traces), catálogo das suítes de teste e guia de como usar/executar.
 - [**Cenários de Teste e Caos**](CENARIOS_DE_TESTE_E_CAOS.md): Detalhamento dos cenários de teste de carga contínua, simulação de falhas e disjuntores.
 - [**Guia de Abstração de Vendors e Provedores**](GUIA_DE_ABSTRACAO_DE_VENDORS_E_PROVEDORES.md): Arquitetura agnóstica de fornecedor (Prometheus, Jaeger, Loki, Datadog via OTLP, Dynatrace, New Relic, OTel Collector).
 - [**Guia de Flow Dimensions, Migração Operacional e Feature Flags**](GUIA_FLOW_DIMENSIONS_E_MIGRACAO_FEATURE_FLAGS.md): Padrão de Flow Dimensions de primeira classe (`variant`), SPI `FeatureEvaluationListener`, segregação dimensional A/B, decomposição matemática de latência e zero contaminação de business code.
 - [**Especificação Técnica para Starter Spring Boot**](ESPECIFICACAO_TECNICA_STARTER_OBSERVABILIDADE.md): Especificação completa e guia para extração da observabilidade em um starter reutilizável por um Agente de IA.
 - [**Especificação Técnica: Engine SPI e Datadog Oficial**](ESPECIFICACAO_TECNICA_ENGINE_DATADOG_E_VENDOR_NEUTRAL.md): Arquitetura Hexagonal com `ObservabilityEngine`, recursos nativos do Datadog (Request Flow Maps, DSM, Service Map) e garantia de Vendor Neutrality.
+- [**Starter Corporativo Multi-Módulo**](../README.md): Documentação raiz do ecossistema segregado em 7 módulos (`observability-api`, `core`, `autoconfigure`, `starter`, `test`, `legacy-compat`, `demo`), perfis Datadog/Prometheus e política Single-Producer.
 
 ---
 

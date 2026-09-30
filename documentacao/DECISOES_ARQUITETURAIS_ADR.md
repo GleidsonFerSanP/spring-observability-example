@@ -392,6 +392,79 @@ Se os microsserviços ou o starter corporativo acoplarem-se a classes proprietá
   - Requer que o ambiente produtivo garanta a presença do `dd-java-agent` na inicialização da JVM com a variável `DD_TRACE_OTEL_ENABLED=true`.
   - Exige manutenção contínua da conformidade semântica de tags entre os adaptadores.
 
+---
+
+## ADR 14: Migração para Starter Corporativo Multi-Módulo, Política Single-Producer por Sinal e OpenTelemetry API Pura
+
+### Status
+Aprovado / Implementado
+
+### Contexto
+A evolução do projeto de um laboratório de microsserviços (`user-orchestrator`) para um Spring Boot Starter corporativo reutilizável exigiu o enfrentamento de quatro desafios fundamentais de arquitetura de telemetria em escala de produção:
+
+1. **Conflito de Tracing Engines na JVM**: A coexistência na mesma JVM de um agente Java de tracing (como `dd-java-agent`) com bridges internas do Micrometer (`micrometer-tracing-bridge-otel`) e SDKs embutidos (`opentelemetry-sdk`, exportadores OTLP) gera concorrência destrutiva:
+   - Spans duplicados ou desconexos, quebrando o trace context distribuído entre camadas síncronas e assíncronas.
+   - Alto consumo de CPU e contenção de threads devido a múltiplos interceptadores atuando sobre as mesmas chamadas de rede e métodos instrumentados.
+   - Datadog e OpenTelemetry recomendam explicitamente que, quando o agente da plataforma estiver presente, a aplicação deve interagir unicamente com a **OpenTelemetry API**, deixando o ciclo de vida do Tracer e o exportador sob responsabilidade exclusiva do agente da JVM.
+
+2. **Risco de Duplicidade de Telemetria e Faturas Abusivas em SaaS**:
+   - Sem uma governança rígida, aplicações em migração frequentemente exportam o mesmo conjunto de métricas para múltiplos destinos (ex: Prometheus local e Datadog via Datadog MeterRegistry).
+   - Isso resulta em faturamento duplicado ou triplicado de ingestão de métricas em serviços SaaS, além de sobrecarga na rede interna e na JVM.
+
+3. **Falácia da Adição Linear em Fluxos Concorrentes**:
+   - Em operações que executam chamadas concorrentes via `CompletableFuture`, threads paralelas ou reativas, o cálculo sequencial tradicional de latência interna ($T_{internal} = T_{total} - \sum T_{steps}$) falha gravemente, produzindo valores negativos ou somatórios de trabalho que excedem 100% da duração física (*wall-clock*).
+
+4. **Acoplamento de Domínio a Frameworks de Observabilidade**:
+   - Modelos de negócio e bibliotecas internas de domínio não devem ser obrigados a depender de Spring Boot, Micrometer ou SDKs pesados de telemetria apenas para declarar intenções semânticas de observabilidade (`@TrackFlow`, `@TrackStep`, `@FlowDimension`).
+
+### Decisão
+
+1. **Arquitetura Multi-Módulo Segregada em Camadas**:
+   - **`observability-api`**: Módulo leve de dependência zero (POJO / Java puro). Contém anotações de domínio (`@TrackFlow`, `@TrackStep`, `@FlowDimension`, `@ObservationTag`, `@LogLeg`) e interfaces de dimensão. Pode ser incluído em qualquer módulo de negócio sem acoplamento a Spring, Micrometer ou OTel.
+   - **`observability-core`**: Núcleo agnóstico de framework. Contém a modelagem temporal de fluxos (`FlowExecution`, `StepExecution`), o `LatencyAttributionEngine` com algoritmo de união de intervalos, o detector de runtime de tracing (`TracingRuntimeDetector`), a política de governança de cardinalidade (`CardinalityPolicy`) e o motor de auditoria/mascaramento de dados (`SpelMaskingService`).
+   - **`observability-autoconfigure`**: Autoconfiguração inteligente do Spring Boot (`AutoConfiguration.imports`, `@ConditionalOnClass`, `@ConditionalOnProperty`). Orquestra os aspectos AOP, filtros Servlet de correlação, decoradores assíncronos e instrumentações automáticas para Feign, Kafka, SQS, HikariCP e Resilience4j, além do validador de topologia (`ObservabilityTopologyValidator`).
+   - **`observability-spring-boot-starter`**: Starter corporativo umbrella. Agrega as dependências necessárias (`api`, `core`, `autoconfigure` e `micrometer-core`) para uso *plug-and-play* nas aplicações consumidoras.
+   - **`observability-test`**: Módulo de testes isolado contendo utilitários baseados em `ApplicationContextRunner` e asserções customizadas de topologia para validar configurações sem poluir artefatos produtivos.
+   - **`observability-legacy-compat`**: Camada de adaptadores para manter compatibilidade binária e de configuração com versões prévias do laboratório.
+   - **`observability-demo`**: A aplicação de demonstração completa (`user-orchestrator`), validando a integração de todas as capacidades sob tráfego real, testes de integração e cenários de caos.
+
+2. **Adoção Exclusiva da OpenTelemetry API Pura (Zero SDK/Exporters no Starter)**:
+   - O starter base declara dependência estritamente com `io.opentelemetry:opentelemetry-api`.
+   - Nenhuma dependência com `opentelemetry-sdk`, `opentelemetry-exporter-*` ou `micrometer-tracing-bridge-otel` é empacotada no starter corporativo.
+   - Em produção corporativa sob Datadog, o `-javaagent:dd-java-agent.jar` (com `DD_TRACE_OTEL_ENABLED=true`) injeta automaticamente a implementação oficial do Tracer OpenTelemetry. A aplicação manipula spans e atributos diretamente via API padrão aberta sem conflitos de engine.
+
+3. **Política "Single-Producer Per Signal" e Seleção por Perfis**:
+   - Estabelecida a regra de ouro: **cada sinal de observabilidade (Métricas, Traces e Logs) deve possuir exatamente UM produtor ativo na JVM**.
+   - **Perfil Padrão Corporativo**: `observability.profile: datadog`. Ativa o registro de métricas voltado para o ecossistema Datadog.
+   - **Perfil Alternativo**: `observability.profile: prometheus`. Habilita o `PrometheusMeterRegistry` e o endpoint `/actuator/prometheus` para ambientes locais, CI/CD ou clusters baseados em Prometheus/Grafana.
+   - **Guarda contra Exportação Duplicada (Dual-Export Guard)**: O validador de topologia (`ObservabilityTopologyValidator`) analisa os registries de métricas ativos. Se múltiplos exporters forem detectados sem que a flag explícita `observability.metrics.allow-dual-export: true` tenha sido configurada, a aplicação aborta a inicialização (*fail-fast*) com instruções acionáveis de resolução, prevenindo surpresas na fatura da nuvem.
+   - **Detecção de Agentes Concorrentes**: O `TracingRuntimeDetector` inspeciona os argumentos da JVM (`-javaagent`) via JMX `RuntimeMXBean` e alerta/bloqueia a inicialização caso múltiplos agentes concorrentes (ex: Datadog Agent + OpenTelemetry Java Agent) estejam injetados simultaneamente.
+
+4. **Motor de Atribuição de Latência com União Geométrica de Intervalos**:
+   - O `LatencyAttributionEngine` modela a execução de cada passo como um intervalo temporal $[start_i, end_i]$.
+   - Em fluxos com execução paralela ou concorrente, calcula-se a união dos intervalos ativos $\bigcup I_i$.
+   - O tempo de processamento interno real é dado por:
+     $$T_{internal} = T_{wall\_clock} - \mu\left(\bigcup_{i=1}^{n} I_i\right)$$
+   - Essa formulação garante as invariantes matemáticas de que $0 \le T_{internal} \le T_{wall\_clock}$, eliminando frações negativas e preservando a fidelidade da decomposição de latência mesmo sob paralelismo massivo.
+
+5. **Governança Estrita de Cardinalidade (`CardinalityPolicy`)**:
+   - Dimensões de métricas (Time-Series DB) são restritas a valores previsíveis e de baixa cardinalidade (`variant`, `feature`, `flow.name`, `step.name`, `status`).
+   - Identificadores de entidades de alta cardinalidade avaliados dinamicamente via expressões SpEL (`#userId`, `#orderId`, tokens) são direcionados estritamente aos atributos dos Spans de rastreamento ou ao MDC de logs, impedindo a ocorrência de "cardinality bombs" nos backends de métricas.
+
+### Consequências
+
+- **Positivas**:
+  - **Zero Conflitos de Tracing na JVM**: O Datadog Java Agent atua como provedor canônico sem concorrência de SDKs locais, garantindo traces distribuídos contínuos e sem quebras de contexto.
+  - **Prevenção Centralizada de Custos**: Bloqueio ativo contra duplicidade de envio de métricas para múltiplos provedores pagos.
+  - **Desacoplamento Arquitetural**: Módulos de negócio importam apenas `observability-api` (poucos kilobytes, zero dependências transitivas), mantendo arquiteturas limpas e hexagonais.
+  - **Exatidão Matemática de Telemetria**: Eliminação de distorções em métricas de latência causadas por chamadas paralelas em microserviços.
+  - **Flexibilidade Operacional**: Alternância limpa e declarativa entre perfis `datadog` e `prometheus` via configuração Spring Boot (`application.yml`).
+
+- **Negativas / Cuidados**:
+  - Em ambientes locais onde o desenvolvedor deseja visualizar traces sem o `dd-java-agent`, é necessário configurar um exportador ou agente apropriado via perfil de desenvolvimento.
+  - A ativação intencional de dual-export (ex: durante janelas de migração de 30 dias entre ferramentas de métricas) exige a configuração explícita de `observability.metrics.allow-dual-export: true`.
+
+
 
 
 
