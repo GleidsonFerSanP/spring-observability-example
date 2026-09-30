@@ -61,9 +61,9 @@ A documentação detalhada da arquitetura, observabilidade e engenharia de caos 
 | ![Loki Legs Stream](documentacao/evidencias/03-grafana-loki-legs-audit.png) | ![Loki Explore](documentacao/evidencias/04-grafana-loki-explore.png) |
 
 ## 🧪 Testes Automatizados (Stubs sobre Mocks & Validação da Telemetria)
-A aplicação conta com uma suíte abrangente de **31 testes de integração e ponta a ponta (E2E)** que comprovam toda a telemetria (Logs, Métricas, Traces, SpEL, Feature Flags e Flow Dimensions) sem necessidade de mocks:
+A aplicação conta com uma suíte abrangente de **34 testes de integração e ponta a ponta (E2E)** que comprovam toda a telemetria (Logs, Métricas, Traces, SpEL, Feature Flags, Flow Dimensions, Topologia e Enriquecimento Declarativo de MDC) sem necessidade de mocks:
 ```bash
-# Executar todos os 31 testes
+# Executar todos os 34 testes em todos os módulos
 mvn test
 
 # Executar suíte específica (ex: E2E Síncrono)
@@ -72,15 +72,27 @@ mvn test -Dtest=UserOrchestratorE2EObservabilityIntegrationTest
 # Executar suíte de Correlation ID e Logback Padronizado
 mvn test -Dtest=CorrelationAndStandardLogbackIntegrationTest
 
+# Executar suíte de Enriquecimento de Logs via @MDC
+mvn test -Dtest=MdcEnrichmentIntegrationTest
+
 # Executar suíte de Migração de Fluxos com Feature Flags e Flow Dimensions
 mvn test -Dtest=FeatureFlagMigrationFlowIntegrationTest
 ```
 Consulte o [**Guia de Testes de Integração e E2E**](file:///Users/gleidsonfersanp/workspace/spring-observability-example/documentacao/GUIA_DE_TESTES_E2E_E_INTEGRACAO.md) para detalhes da arquitetura de testes e templates.
 
-## 📜 Padronização de Logs (Logback Multi-Perfil & Correlation ID)
-O logging da aplicação segue o padrão corporativo com separação de perfis e appenders assíncronos:
-- **Dev/Local (`!container & !prod`)**: Console colorido com identificação de threads, `[cid=...]` e trace context `[%X{traceId},%X{spanId}]`.
-- **Produção/Cloud (`container | prod`)**: Console em formato JSON estruturado (`JSON_CONSOLE`) mono-linha com atributos de correlação, pernas (`leg_*`) e sanitização de quebras de linha (`CRLF`).
+## 🏷️ Enriquecimento Declarativo de Logs (`@MDC`)
+O projeto utiliza a anotação [`@MDC`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/MDC.java) do starter para eliminar 100% dos `MDC.put` / `MDC.remove` manuais do código da aplicação:
+- **No Controller REST ([`UserOrchestratorController`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-demo/src/main/java/com/gleidsonfersanp/observability/api/UserOrchestratorController.java))**:
+  - `GET /users/{userId}`: captura `@PathVariable @MDC("userId") String userId`.
+  - `POST /users`: captura `@MDC(key = "userId", expression = "#request.userId")` e `@MDC(key = "channel", value = "web")`.
+- **No Serviço de Negócio ([`UserOrchestratorService`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-demo/src/main/java/com/gleidsonfersanp/observability/application/UserOrchestratorService.java))**:
+  - `fetchAndProvisionUserProfile`: injeta `@MDC(key = "flowType", value = "orchestrated-provisioning")`.
+- **Stack Semantics**: Todos os valores são empilhados no início do método e restaurados/removidos no bloco `finally`, prevenindo contaminação entre requisições em thread pools.
+
+## 📜 Padronização de Logs (Logback Multi-Perfil Centralizado & Correlation ID)
+O logging da aplicação herda a configuração centralizada [`logback.yml`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-autoconfigure/src/main/resources/logback.yml) do starter e a estende no `logback-spring.xml` com separação de perfis:
+- **Dev/Local (`!container & !prod`)**: Console colorido com identificação de threads, `[cid=...]`, `[%X{traceId},%X{spanId}]` e `[flow=...,step=...]`.
+- **Produção/Cloud (`container | prod`)**: Console em formato JSON estruturado (`JSON_CONSOLE`) mono-linha com atributos de correlação, pernas (`leg_*`), tags de negócio do `@MDC` (`userId`, `flowType`, `channel`) e sanitização de quebras de linha (`CRLF`).
 - **Appenders Assíncronos (`AsyncAppender`)**: Escrita de logs em fila sem bloquear threads de negócio.
 - **Grafana Loki (`Loki4jAppender`)**: Push direto assíncrono para o Loki (`:3100`) com indexação de labels (`app`, `level`, `leg_type`, `leg_target`, `leg_phase`).
 - **Propagação de Correlation ID (`X-Correlation-Id` / `cid`)**: Interceptação na entrada HTTP (`CorrelationIdFilter`), propagação downstream no Feign e envelopes Kafka e SQS.

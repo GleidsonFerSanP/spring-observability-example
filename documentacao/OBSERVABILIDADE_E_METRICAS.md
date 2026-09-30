@@ -38,6 +38,61 @@ O aspecto intercepta a chamada, injeta variáveis de entrada (`#userId`) antes d
 
 ---
 
+## 🏷️ 1.1. Enriquecimento Declarativo de Logs (`@MDC`) vs Métricas e Spans (`@ObservationTag`)
+
+### A Fronteira Arquitetural entre Logs e Métricas
+Um dos maiores erros em projetos de observabilidade é tentar usar a mesma anotação para enriquecer logs e métricas. O starter estabelece uma distinção rigorosa:
+
+| Pilar | Anotação | Destino | Tratamento de Cardinalidade | Exemplo de Uso |
+|---|---|---|---|---|
+| **Logs (Contexto da Thread)** | [`@MDC`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/MDC.java) | SLF4J MDC (Console, Loki, Datadog Logs) | Alta cardinalidade permitida livremente | `userId`, `flowType`, `channel` |
+| **Métricas TSDB** | [`@ObservationTag`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/ObservationTag.java) | Micrometer Observation (`lowCardinality=true`) | Estritamente baixa cardinalidade (dimensões finitas) | `billing_type`, `client`, `status` |
+| **Tracing Spans** | [`@ObservationTag`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-api/src/main/java/com/empresa/platform/observability/core/annotation/ObservationTag.java) | Spans OTel / Jaeger (`lowCardinality=false`) | Alta cardinalidade permitida (sem afetar TSDB) | `transaction_id`, `payload_hash` |
+
+### Eliminando 100% dos `MDC.put` / `MDC.remove` Manuais
+No projeto de exemplo, eliminamos qualquer chamada manual a `org.slf4j.MDC`. Toda a injeção contextual é feita declarativamente:
+
+#### 1. No Controller REST ([`UserOrchestratorController`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-demo/src/main/java/com/gleidsonfersanp/observability/api/UserOrchestratorController.java)):
+```java
+// Extração direta de PathVariable:
+@GetMapping("/users/{userId}")
+public ResponseEntity<UserProfileResponse> getUserProfile(
+        @PathVariable @MDC("userId") String userId) {
+    log.info("Recebida requisição para consultar e provisionar usuário");
+    // O log acima já é emitido com userId="..." no MDC!
+    return ResponseEntity.ok(userOrchestratorService.fetchAndProvisionUserProfile(userId));
+}
+
+// Extração dinâmica SpEL e valor estático no POST:
+@PostMapping("/users")
+@MDC(key = "userId", expression = "#request.userId")
+@MDC(key = "channel", value = "web")
+public ResponseEntity<UserRegistrationResponse> registerUser(
+        @RequestBody UserRegistrationRequest request) {
+    log.info("Recebida solicitação de cadastro assíncrono");
+    // O log acima já contém userId="..." e channel="web"!
+    return ResponseEntity.accepted().body(userOrchestratorService.registerUserAsync(request));
+}
+```
+
+#### 2. Na Camada de Aplicação / Domínio ([`UserOrchestratorService`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-demo/src/main/java/com/gleidsonfersanp/observability/application/UserOrchestratorService.java)):
+```java
+@Observed(name = "user.profile.provision")
+@MDC(key = "flowType", value = "orchestrated-provisioning")
+public UserProfileResponse fetchAndProvisionUserProfile(String userId) {
+    log.info("Iniciando orquestração de perfil para o usuário");
+    // O MDC agora contém flowType="orchestrated-provisioning" além do userId herdado da thread!
+    ...
+}
+```
+
+### Isolamento Seguro via Stack Semantics
+O aspecto [`MdcAspect`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-core/src/main/java/com/empresa/platform/observability/core/aspect/MdcAspect.java) empilha os valores anteriores antes da execução do método e restaura ou remove o valor em um bloco `finally`. Isso garante:
+- **Zero Vazamento de Contexto**: Se uma thread do Tomcat atender a requisição do usuário `A` e logo depois atender o usuário `B`, o `userId` de `A` é completamente limpo, mesmo em caso de exceções não tratadas.
+- **Validação Automatizada nos Testes**: O teste de integração [`MdcEnrichmentIntegrationTest`](file:///Users/gleidsonfersanp/workspace/spring-observability-example/observability-demo/src/test/java/com/gleidsonfersanp/observability/MdcEnrichmentIntegrationTest.java) comprova através de chamadas MockMvc e inspeção direta via `ListAppender` do Logback que as propriedades `userId`, `flowType` e `channel` aparecem estruturadamente nos logs durante o fluxo e são limpas no término.
+
+---
+
 ## ⚡ 2. Circuit Breakers Granulares
 
 Em vez de aplicar um único `@CircuitBreaker(name = "orchestrator")` no serviço central — o que mascararia qual integração falhou e derrubaria todo o orquestrador —, cada cliente externo possui seu próprio disjuntor:

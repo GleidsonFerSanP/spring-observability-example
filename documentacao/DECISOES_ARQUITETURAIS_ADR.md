@@ -19,6 +19,8 @@ Este documento registra formalmente as principais decisões arquiteturais tomada
 - [ADR 11: Padronização Corporativa de Logback Multi-Perfil, Appenders Assíncronos e Propagação de Correlation ID](#adr-11-padronização-corporativa-de-logback-multi-perfil-appenders-assíncronos-e-propagação-de-correlation-id)
 - [ADR 12: Flow Dimensions e SPI Desacoplada de Feature Flags para Migração Operacional de Rotas](#adr-12-flow-dimensions-e-spi-desacoplada-de-feature-flags-para-migração-operacional-de-rotas)
 - [ADR 13: Arquitetura Hexagonal de Observabilidade com Engine SPI e Datadog como Engine Oficial Corporativo](#adr-13-arquitetura-hexagonal-de-observabilidade-com-engine-spi-e-datadog-como-engine-oficial-corporativo)
+- [ADR 14: Migração para Starter Corporativo Multi-Módulo, Política Single-Producer por Sinal e OpenTelemetry API Pura](#adr-14-migração-para-starter-corporativo-multi-módulo-política-single-producer-por-sinal-e-opentelemetry-api-pura)
+- [ADR 15: Isolamento Estrito de MDC Declarativo (@MDC) e Centralização Corporativa de Logging via Logback Multi-Perfil](#adr-15-isolamento-estrito-de-mdc-declarativo-mdc-e-centralização-corporativa-de-logging-via-logback-multi-perfil)
 
 ---
 
@@ -462,9 +464,44 @@ A evolução do projeto de um laboratório de microsserviços (`user-orchestrato
 
 - **Negativas / Cuidados**:
   - Em ambientes locais onde o desenvolvedor deseja visualizar traces sem o `dd-java-agent`, é necessário configurar um exportador ou agente apropriado via perfil de desenvolvimento.
-  - A ativação intencional de dual-export (ex: durante janelas de migração de 30 dias entre ferramentas de métricas) exige a configuração explícita de `observability.metrics.allow-dual-export: true`.
+---
 
+## ADR 15: Isolamento Estrito de MDC Declarativo (`@MDC`) e Centralização Corporativa de Logging via Logback Multi-Perfil
 
+### Contexto
+Historicamente, enriquecer logs estruturados com identificadores de negócio (ex: `userId`, `tenantId`, `channel`, `flowType`) dependia de chamadas manuais a `org.slf4j.MDC.put(k, v)` e `org.slf4j.MDC.remove(k)` espalhadas por controllers e services. Essa abordagem causava três problemas graves:
+1. **Poluição de Código de Domínio**: Métodos de negócio eram forçados a importar classes de infraestrutura de logging do SLF4J e envolver suas execuções em blocos `try/finally` para evitar vazamentos de dados.
+2. **Vazamento Crítico em Thread Pools (Thread-Local Leakage)**: Em servidores de aplicação com reuso de threads (como Tomcat Workers, Netty EventLoops e executors `@Async`), esquecer de invocar `MDC.remove()` ou a ocorrência de exceções antes do fechamento do bloco deixava a thread "suja" com identificadores de requisições anteriores. Um cliente subsequente processado naquela mesma thread acabava tendo seus logs marcados com o `userId` de outro usuário, gerando graves violações de privacidade e incidentes de segurança.
+3. **Confusão Arquitetural entre Logs e Métricas**: Tentativas anteriores de reutilizar anotações de métricas para popular o MDC (ou vice-versa) esbarravam no problema de cardinalidade: atributos de log são de alta cardinalidade por natureza (`userId`, `cpf`), enquanto métricas TSDB (Prometheus/Datadog) exigem cardinalidade finita e baixa (`plan`, `region`). Misturar ambos em uma única anotação colocava em risco a estabilidade do banco de métricas.
+4. **Duplicação de Arquivos XML de Configuração**: Cada microsserviço replicava dezenas de linhas de `logback-spring.xml` com appenders complexos e padrões de conversão divergentes, dificultando a ingestão uniforme no Datadog Logs ou Grafana Loki.
 
+### Decisão
+1. **Criação da Anotação Declarativa `@MDC` e `@MDCs`**:
+   - Criada no módulo puro `observability-api`, totalmente desacoplada de Spring e Micrometer.
+   - Suporta extração direta de argumentos anotados em métodos (`@PathVariable @MDC("userId") String userId`).
+   - Suporta avaliação dinâmica de expressões SpEL em objetos de requisição (`@MDC(key = "userId", expression = "#request.userId")`).
+   - Suporta declaração de valores estáticos de contexto (`@MDC(key = "channel", value = "web")`).
+   - Agrupamento em lote via `@MDCs({ ... })`.
+2. **Semântica Estrita de Pilha (Stack Semantics) no `MdcAspect`**:
+   - O aspecto intercepta o método alvo (`@Around`) e captura o estado anterior da chave na thread.
+   - Empilha o valor pré-existente antes de aplicar o novo valor.
+   - Em um bloco `finally` garantido, restaura o valor anterior (se existia) ou executa `MDC.remove()`.
+   - Compatível com proxies CGLIB e anotações herdadas através de `AopUtils.getMostSpecificMethod`.
+3. **Separação Cristalina entre `@MDC` e `@ObservationTag`**:
+   - `@MDC`: Exclusivo para o contexto textual da thread (SLF4J MDC), alimentando logs no console, Loki e Datadog Logs. Alta cardinalidade permitida livremente.
+   - `@ObservationTag`: Exclusivo para Micrometer Observation, com governança explícita via `lowCardinality=true` (TSDB) e `lowCardinality=false` (Spans de tracing).
+4. **Centralização Corporativa de Logging com Injeção via `logback.yml`**:
+   - O starter empacota `logback.yml` contendo os defaults corporativos (formatos de console ANSI colorido com `cid`, `traceId`, `spanId`, `flow` e `step`).
+   - Injetado na inicialização do Spring Boot via `ObservabilityLoggingEnvironmentPostProcessor` com menor precedência, permitindo override limpo no `application.yml` dos microsserviços.
+   - Fornece o arquivo `observability-logback-defaults.xml` para inclusão modular via `<include resource="..."/>` em microsserviços com `logback-spring.xml` próprio.
 
+### Consequências
+- **Positivas**:
+  - Eliminação de 100% dos `MDC.put` / `MDC.remove` manuais do código da aplicação.
+  - Risco zero de vazamento de contexto entre threads ou mistura de identificadores de clientes em pools reusados.
+  - Separação completa de preocupações: logs textuais vs métricas dimensionais.
+  - Padronização visual em desenvolvimento local (ANSI) e estruturada em produção (JSON monolinha).
+  - Validação automatizada na suíte de testes (`MdcEnrichmentIntegrationTest`).
+- **Negativas / Cuidados**:
+  - Avaliação de expressões SpEL muito complexas pode adicionar microssegundos adicionais por chamada (mitigado pelo cache de expressões compiladas no Spring ExpressionParser).
 
